@@ -17,7 +17,6 @@ const CONTENT_SELECTORS = [
   '#content',
   '.prose',
   'td[width="435"]',
-  'td[width=435]',
   'body > table td',
   'body > div',
 ]
@@ -45,6 +44,14 @@ function makeLinksAbsolute(html: string, baseUrl: string): string {
   return doc.body?.innerHTML || ''
 }
 
+/** 移除正文中的首个 h1，避免与 RSS 标题重复 */
+function stripFirstH1(html: string): string {
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  const firstH1 = doc.body?.querySelector('h1')
+  if (firstH1) firstH1.remove()
+  return doc.body?.innerHTML || ''
+}
+
 function extractContent(html: string, url: string): string {
   const doc = new DOMParser().parseFromString(html, 'text/html')
 
@@ -63,7 +70,8 @@ function extractContent(html: string, url: string): string {
   }
 
   if (best) {
-    return makeLinksAbsolute(best.el.innerHTML, url)
+    const html = makeLinksAbsolute(best.el.innerHTML, url)
+    return stripFirstH1(html)
   }
 
   const body = doc.body
@@ -73,13 +81,15 @@ function extractContent(html: string, url: string): string {
   for (const table of Array.from(tables)) {
     const text = table.textContent?.trim() || ''
     if (text.length > 300) {
-      return makeLinksAbsolute(table.innerHTML, url)
+      const html = makeLinksAbsolute(table.innerHTML, url)
+      return stripFirstH1(html)
     }
   }
 
   const text = body.textContent?.trim() || ''
   if (text.length > 200) {
-    return makeLinksAbsolute(body.innerHTML, url)
+    const html = makeLinksAbsolute(body.innerHTML, url)
+    return stripFirstH1(html)
   }
 
   return ''

@@ -31,6 +31,8 @@ interface ReaderToolbarProps {
   onBrightnessChange: (value: number) => void
   fontSize: number
   onFontSizeChange: (value: number) => void
+  lineHeight: number
+  onLineHeightChange: (value: number) => void
   fontId: string
   onFontChange: (id: string) => void
   bgId: string
@@ -45,12 +47,16 @@ export function ReaderToolbar({
   onBrightnessChange,
   fontSize,
   onFontSizeChange,
+  lineHeight,
+  onLineHeightChange,
   fontId,
   onFontChange,
   bgId,
   onBgChange,
 }: ReaderToolbarProps) {
   const [expanded, setExpanded] = useState<ExpandKey>(null)
+  const bg = BG_OPTIONS.find((b) => b.id === bgId) ?? BG_OPTIONS[0]
+  const isDark = bgId === 'dark'
 
   const toggle = (key: ExpandKey) => setExpanded((v) => (v === key ? null : key))
 
@@ -59,6 +65,10 @@ export function ReaderToolbar({
     if (!isNaN(v)) onProgressChange(v)
   }
 
+  const hoverClass = isDark ? 'hover:bg-white/10' : 'hover:bg-black/5'
+  const activeClass = 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
+  const borderColor = isDark ? 'border-white/20' : 'border-black/10'
+
   return (
     <div
       className={`fixed bottom-0 left-0 right-0 z-50 transform transition-transform duration-300 ease-out ${
@@ -66,20 +76,26 @@ export function ReaderToolbar({
       }`}
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur border-t border-slate-200 dark:border-slate-700 shadow-[0_-4px_20px_rgba(0,0,0,0.1)]">
-        <div className="max-w-3xl mx-auto px-4 py-3">
+      <div
+        className={`backdrop-blur border-t shadow-[0_-4px_20px_rgba(0,0,0,0.08)] ${borderColor}`}
+        style={{ backgroundColor: `${bg.bg}F2` }}
+      >
+        <div className="max-w-3xl mx-auto px-4 py-3" style={{ color: bg.text }}>
           {/* 模块图标行 */}
           <div className="flex items-stretch justify-center gap-8 sm:gap-12">
             {/* 进度 - 迷你进度条样式 */}
             <button
               onClick={() => toggle('progress')}
               className={`flex flex-col items-center gap-1.5 p-2.5 rounded-lg transition-colors min-w-[3rem] ${
-                expanded === 'progress' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400' : 'hover:bg-slate-100 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-400'
+                expanded === 'progress' ? activeClass : hoverClass
               }`}
               title="进度"
             >
               <div className="h-8 flex items-center justify-center shrink-0">
-                <div className="relative w-11 h-2.5 rounded-full bg-slate-200 dark:bg-slate-600 overflow-visible">
+                <div
+                  className="relative w-11 h-2.5 rounded-full overflow-visible"
+                  style={{ backgroundColor: `${bg.text}30` }}
+                >
                   <div
                     className="absolute top-1/2 w-3 h-3 rounded-full bg-blue-500 shadow-sm -translate-y-1/2 -translate-x-1/2"
                     style={{ left: `${Math.max(2, Math.min(progress, 98))}%` }}
@@ -93,7 +109,7 @@ export function ReaderToolbar({
             <button
               onClick={() => toggle('font')}
               className={`flex flex-col items-center gap-1.5 p-2.5 rounded-lg transition-colors min-w-[3rem] ${
-                expanded === 'font' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400' : 'hover:bg-slate-100 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-400'
+                expanded === 'font' ? activeClass : hoverClass
               }`}
               title="字体"
             >
@@ -107,7 +123,7 @@ export function ReaderToolbar({
             <button
               onClick={() => toggle('bg')}
               className={`flex flex-col items-center gap-1.5 p-2.5 rounded-lg transition-colors min-w-[3rem] ${
-                expanded === 'bg' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400' : 'hover:bg-slate-100 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-400'
+                expanded === 'bg' ? activeClass : hoverClass
               }`}
               title="背景"
             >
@@ -121,7 +137,7 @@ export function ReaderToolbar({
             <button
               onClick={() => toggle('brightness')}
               className={`flex flex-col items-center gap-1.5 p-2.5 rounded-lg transition-colors min-w-[3rem] ${
-                expanded === 'brightness' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400' : 'hover:bg-slate-100 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-400'
+                expanded === 'brightness' ? activeClass : hoverClass
               }`}
               title="亮度"
             >
@@ -137,10 +153,10 @@ export function ReaderToolbar({
 
           {/* 展开内容区 - 仅在有展开时渲染 */}
           {expanded && (
-          <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-600">
+          <div className={`mt-3 pt-3 border-t ${borderColor}`}>
             {expanded === 'progress' && (
               <div className="flex items-center gap-3">
-                <span className="text-xs text-slate-500 dark:text-slate-400 shrink-0 w-10">进度</span>
+                <span className="text-xs opacity-75 shrink-0 w-10">进度</span>
                 <input
                   type="range"
                   min="0"
@@ -150,14 +166,14 @@ export function ReaderToolbar({
                   onChange={handleProgressChange}
                   className={SLIDER_STYLES}
                 />
-                <span className="text-xs text-slate-500 dark:text-slate-400 shrink-0 w-10">{Math.round(progress)}%</span>
+                <span className="text-xs opacity-75 shrink-0 w-10">{Math.round(progress)}%</span>
               </div>
             )}
 
             {expanded === 'font' && (
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
-                  <span className="text-xs text-slate-500 dark:text-slate-400 shrink-0 w-10">字号</span>
+                  <span className="text-xs opacity-75 shrink-0 w-10">字号</span>
                   <input
                     type="range"
                     min="14"
@@ -167,10 +183,23 @@ export function ReaderToolbar({
                     onChange={(e) => onFontSizeChange(parseInt(e.target.value, 10))}
                     className={SLIDER_STYLES}
                   />
-                  <span className="text-xs text-slate-500 dark:text-slate-400 shrink-0 w-10">{fontSize}px</span>
+                  <span className="text-xs opacity-75 shrink-0 w-10">{fontSize}px</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs opacity-75 shrink-0 w-10">行距</span>
+                  <input
+                    type="range"
+                    min="1.2"
+                    max="2.2"
+                    step="0.1"
+                    value={lineHeight}
+                    onChange={(e) => onLineHeightChange(parseFloat(e.target.value))}
+                    className={SLIDER_STYLES}
+                  />
+                  <span className="text-xs opacity-75 shrink-0 w-10">{lineHeight.toFixed(1)}</span>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-slate-500 dark:text-slate-400 shrink-0">字体</span>
+                  <span className="text-xs opacity-75 shrink-0">字体</span>
                   {FONT_OPTIONS.map((f) => (
                     <button
                       key={f.id}
@@ -178,7 +207,7 @@ export function ReaderToolbar({
                       className={`px-3 py-1.5 rounded text-sm transition-colors ${
                         fontId === f.id
                           ? 'bg-blue-500 text-white'
-                          : 'bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-500'
+                          : isDark ? 'bg-white/20 text-current hover:bg-white/30' : 'bg-black/10 text-current hover:bg-black/15'
                       }`}
                     >
                       {f.label}
@@ -190,13 +219,13 @@ export function ReaderToolbar({
 
             {expanded === 'bg' && (
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-slate-500 dark:text-slate-400 shrink-0">背景</span>
+                <span className="text-xs opacity-75 shrink-0">背景</span>
                 {BG_OPTIONS.map((b) => (
                   <button
                     key={b.id}
                     onClick={() => onBgChange(b.id)}
                     className={`w-8 h-8 rounded-full border-2 transition-transform hover:scale-110 ${
-                      bgId === b.id ? 'border-blue-500 scale-110' : 'border-slate-300 dark:border-slate-600'
+                      bgId === b.id ? 'border-blue-500 scale-110' : isDark ? 'border-white/30' : 'border-black/20'
                     }`}
                     style={{ backgroundColor: b.bg }}
                     title={b.label}
@@ -207,7 +236,7 @@ export function ReaderToolbar({
 
             {expanded === 'brightness' && (
               <div className="flex items-center gap-3">
-                <span className="text-xs text-slate-500 dark:text-slate-400 shrink-0 w-10">亮度</span>
+                <span className="text-xs opacity-75 shrink-0 w-10">亮度</span>
                 <input
                   type="range"
                   min="0.5"
@@ -217,7 +246,7 @@ export function ReaderToolbar({
                   onChange={(e) => onBrightnessChange(parseFloat(e.target.value))}
                   className={SLIDER_STYLES}
                 />
-                <span className="text-xs text-slate-500 dark:text-slate-400 shrink-0 w-10">
+                <span className="text-xs opacity-75 shrink-0 w-10">
                   {Math.round(brightness * 100)}%
                 </span>
               </div>

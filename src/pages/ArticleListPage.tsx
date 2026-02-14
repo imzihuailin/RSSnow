@@ -28,6 +28,7 @@ export function ArticleListPage() {
   const [feedTitle, setFeedTitle] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     if (!feedId) return
@@ -75,6 +76,15 @@ export function ArticleListPage() {
     navigate(`/read/${feedId}/${encodeURIComponent(article.id)}`)
   }
 
+  const filteredArticles = searchQuery.trim()
+    ? articles.filter((a) => {
+        const q = searchQuery.toLowerCase()
+        const title = (a.title || '').toLowerCase()
+        const desc = (a.description || '').replace(/<[^>]+>/g, '').toLowerCase()
+        return title.includes(q) || desc.includes(q)
+      })
+    : articles
+
   if (error) {
     return (
       <div className="min-h-screen bg-slate-100 dark:bg-slate-900 flex flex-col">
@@ -110,6 +120,18 @@ export function ArticleListPage() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-6">
+        {!loading && articles.length > 0 && (
+          <div className="mb-4">
+            <input
+              type="search"
+              placeholder="搜索文章…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full px-4 py-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              aria-label="搜索文章"
+            />
+          </div>
+        )}
         {loading ? (
           <div className="py-12 text-center text-slate-500 dark:text-slate-400">
             加载中…
@@ -118,9 +140,13 @@ export function ArticleListPage() {
           <div className="py-12 text-center text-slate-500 dark:text-slate-400">
             暂无文章
           </div>
+        ) : filteredArticles.length === 0 ? (
+          <div className="py-12 text-center text-slate-500 dark:text-slate-400">
+            未找到匹配「{searchQuery}」的文章
+          </div>
         ) : (
           <ul className="space-y-2">
-            {articles.map((article) => (
+            {filteredArticles.map((article) => (
               <li key={article.id}>
                 <button
                   onClick={() => handleArticleClick(article)}

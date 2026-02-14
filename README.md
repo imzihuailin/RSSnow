@@ -22,3 +22,14 @@
 - 想在一个地方集中读很多 RSS 的人
 
 数据都存在本地，不上传、不联网同步，完全在你电脑里。
+
+## 在线使用（GitHub Pages）
+
+把项目 push 到 GitHub 后，别人也能直接用：
+
+1. 在 GitHub 仓库里打开 **Settings → Pages**
+2. 在 **Build and deployment** 下，**Source** 选 **GitHub Actions**
+3. 推送 `main` 分支后，Actions 会自动构建并部署
+4. 访问 `https://<你的用户名>.github.io/RSSnow/` 即可
+
+若仓库名不是 `RSSnow`，修改 `.github/workflows/deploy.yml` 里的 `VITE_BASE_PATH` 为你的仓库名。

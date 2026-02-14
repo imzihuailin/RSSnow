@@ -1,23 +1,74 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getArticlesCache, getFetchedContent, setFetchedContent } from '../utils/storage'
+import { getReadingProgress, setReadingProgress } from '../utils/readingProgress'
+import { getReadingPreferences, saveReadingPreferences } from '../utils/preferences'
 import { fetchArticleContent } from '../hooks/useFetchArticle'
 import { ReaderToolbar, FONT_OPTIONS, BG_OPTIONS } from '../components/ReaderToolbar'
+
+const DEBOUNCE_MS = 300
+
+function flushProgressSave(
+  containerRef: React.RefObject<HTMLDivElement | null>,
+  feedId: string | undefined,
+  decodedId: string
+) {
+  const el = containerRef.current
+  if (!el || !feedId || !decodedId) return
+  const { scrollTop, scrollHeight, clientHeight } = el
+  const maxScroll = scrollHeight - clientHeight
+  if (maxScroll > 0) setReadingProgress(feedId, decodedId, (scrollTop / maxScroll) * 100)
+}
 
 export function ReaderPage() {
   const { feedId, articleId } = useParams<{ feedId: string; articleId: string }>()
   const navigate = useNavigate()
   const containerRef = useRef<HTMLDivElement>(null)
+  const saveProgressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hasRestoredRef = useRef(false)
+  const feedIdRef = useRef(feedId)
+  const decodedIdRef = useRef('')
+
+  const prefs = getReadingPreferences()
   const [toolbarVisible, setToolbarVisible] = useState(false)
   const [progress, setProgress] = useState(0)
-  const [fontId, setFontId] = useState('serif')
-  const [fontSize, setFontSize] = useState(18)
-  const [bgId, setBgId] = useState('white')
-  const [brightness, setBrightness] = useState(1)
+  const [fontId, setFontId] = useState(prefs.fontId)
+  const [fontSize, setFontSize] = useState(prefs.fontSize)
+  const [lineHeight, setLineHeight] = useState(prefs.lineHeight)
+  const [bgId, setBgId] = useState(prefs.bgId)
+  const [brightness, setBrightness] = useState(prefs.brightness)
 
   const decodedId = articleId ? decodeURIComponent(articleId) : ''
+  feedIdRef.current = feedId ?? ''
+  decodedIdRef.current = decodedId
   const cached = feedId ? getArticlesCache(feedId) : null
   const article = cached?.articles?.find((a) => a.id === decodedId)
+
+  // 关闭标签页或切到后台时即时保存进度，防止丢失
+  useEffect(() => {
+    const flush = () => {
+      if (saveProgressTimerRef.current) {
+        clearTimeout(saveProgressTimerRef.current)
+        saveProgressTimerRef.current = null
+      }
+      flushProgressSave(containerRef, feedIdRef.current, decodedIdRef.current)
+    }
+    const onBeforeUnload = () => flush()
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') flush()
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      window.removeEventListener('beforeunload', onBeforeUnload)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
+  }, [])
+
+  // 切换文章时重置恢复标记
+  useEffect(() => {
+    hasRestoredRef.current = false
+  }, [feedId, decodedId])
   const [fetchedContent, setFetchedContentState] = useState<string | null>(null)
   const [fetching, setFetching] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
@@ -41,16 +92,73 @@ export function ReaderPage() {
       setProgress(100)
       return
     }
-    setProgress((scrollTop / maxScroll) * 100)
-  }, [])
+    const pct = (scrollTop / maxScroll) * 100
+    setProgress(pct)
+    // 防抖保存进度
+    if (saveProgressTimerRef.current) clearTimeout(saveProgressTimerRef.current)
+    saveProgressTimerRef.current = setTimeout(() => {
+      if (feedId && decodedId) setReadingProgress(feedId, decodedId, pct)
+      saveProgressTimerRef.current = null
+    }, DEBOUNCE_MS)
+  }, [feedId, decodedId])
 
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
     updateProgress()
     el.addEventListener('scroll', updateProgress, { passive: true })
-    return () => el.removeEventListener('scroll', updateProgress)
-  }, [updateProgress, article])
+    return () => {
+      el.removeEventListener('scroll', updateProgress)
+      if (saveProgressTimerRef.current) {
+        clearTimeout(saveProgressTimerRef.current)
+        saveProgressTimerRef.current = null
+      }
+      // 离开页面前即时保存当前进度
+      const { scrollTop, scrollHeight, clientHeight } = el
+      const maxScroll = scrollHeight - clientHeight
+      if (maxScroll > 0 && feedId && decodedId) {
+        setReadingProgress(feedId, decodedId, (scrollTop / maxScroll) * 100)
+      }
+    }
+  }, [updateProgress, article, feedId, decodedId])
+
+  // 偏好变更时持久化
+  useEffect(() => {
+    saveReadingPreferences({ fontId, fontSize, lineHeight, bgId, brightness })
+  }, [fontId, fontSize, lineHeight, bgId, brightness])
+
+  // 进入页面时恢复阅读进度（上次读到哪里，下次接着读）
+  const contentReady = article && (article.content || article.description || fetchedContent || fetchError)
+  useEffect(() => {
+    if (!contentReady || !feedId || !decodedId || hasRestoredRef.current) return
+    const saved = getReadingProgress(feedId, decodedId)
+    if (!saved || saved.progress <= 0) return
+    const el = containerRef.current
+    if (!el) return
+    const pct = saved.progress
+    let retries = 0
+    const maxRetries = 10
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+    const tryRestore = () => {
+      const { scrollHeight, clientHeight } = el
+      const maxScroll = scrollHeight - clientHeight
+      if (maxScroll > 0) {
+        el.scrollTop = (pct / 100) * maxScroll
+        setProgress(pct)
+        hasRestoredRef.current = true
+        return
+      }
+      if (retries < maxRetries) {
+        retries += 1
+        timeoutId = setTimeout(tryRestore, 80)
+      }
+    }
+    const rafId = requestAnimationFrame(() => requestAnimationFrame(tryRestore))
+    return () => {
+      cancelAnimationFrame(rafId)
+      if (timeoutId) clearTimeout(timeoutId)
+    }
+  }, [contentReady, feedId, decodedId])
 
   const needsFetch = article && !article.content && !article.description && !fetchedContent && !fetching && !fetchError
   useEffect(() => {
@@ -78,6 +186,7 @@ export function ReaderPage() {
     if (maxScroll <= 0) return
     el.scrollTop = (value / 100) * maxScroll
     setProgress(value)
+    if (feedId && decodedId) setReadingProgress(feedId, decodedId, value)
   }
 
   const handleContentClick = () => {
@@ -121,8 +230,7 @@ export function ReaderPage() {
       >
         <button
           onClick={handleBack}
-          className="px-3 py-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-          style={{ color: bg.text }}
+          className="px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
         >
           ← 返回
         </button>
@@ -135,7 +243,7 @@ export function ReaderPage() {
         className="flex-1 overflow-y-auto overscroll-contain pt-14 pb-8 px-4 cursor-default"
       >
         <div className="max-w-2xl mx-auto">
-          <h1 className="font-bold mb-6" style={{ fontFamily: font.fontFamily, fontSize: `${fontSize * 1.25}px` }}>
+          <h1 className="font-bold mb-6" style={{ fontFamily: font.fontFamily, fontSize: `${fontSize * 1.25}px`, lineHeight }}>
             {article.title}
           </h1>
           {fetching ? (
@@ -145,7 +253,7 @@ export function ReaderPage() {
                 className={`reader-content [&_img]:max-w-full [&_a]:hover:underline [&_p]:my-4 [&_h1]:text-2xl [&_h2]:text-xl [&_h3]:text-lg [&_ul]:my-2 [&_ol]:my-2 ${
                   bgId === 'dark' ? '[&_a]:text-sky-300' : '[&_a]:text-blue-600'
                 }`}
-                style={{ fontFamily: font.fontFamily, fontSize: `${fontSize}px` }}
+                style={{ fontFamily: font.fontFamily, fontSize: `${fontSize}px`, lineHeight }}
                 dangerouslySetInnerHTML={{
                   __html:
                     article.content ||
@@ -203,6 +311,8 @@ export function ReaderPage() {
         onBrightnessChange={setBrightness}
         fontSize={fontSize}
         onFontSizeChange={setFontSize}
+        lineHeight={lineHeight}
+        onLineHeightChange={setLineHeight}
         fontId={fontId}
         onFontChange={setFontId}
         bgId={bgId}
