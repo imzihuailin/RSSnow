@@ -7,7 +7,8 @@ body {
   min-height: 100vh;
 }
 
-/* 强制正文继承阅读器字体，覆盖抓取内容中的内联 style、font 标签等 */
+/* 强制正文继承阅读器字体与字号，覆盖抓取内容中的内联 style、font 标签等 */
 .reader-content * {
   font-family: inherit !important;
+  font-size: inherit !important;
 }
