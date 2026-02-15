@@ -280,7 +280,7 @@ export function ReaderPage() {
           }
           lastContentClickRef.current = 0
         }}
-        className="flex-1 overflow-y-auto overscroll-contain pt-14 pb-8 px-4 cursor-default"
+        className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain pt-14 pb-8 px-3 sm:px-4 cursor-default"
       >
         <div className="max-w-2xl mx-auto">
           <h1 className="font-bold mb-6" style={{ fontFamily: font.fontFamily, fontSize: `${fontSize * 1.25}px`, lineHeight }}>

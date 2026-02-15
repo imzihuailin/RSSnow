@@ -11,4 +11,32 @@ body {
 .reader-content * {
   font-family: inherit !important;
   font-size: inherit !important;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.reader-content {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.reader-content img,
+.reader-content video,
+.reader-content canvas,
+.reader-content svg,
+.reader-content iframe,
+.reader-content pre,
+.reader-content code {
+  max-width: 100% !important;
+  height: auto !important;
+}
+
+.reader-content table {
+  display: block;
+  max-width: 100% !important;
+  overflow-x: auto;
+}
+
+.reader-content pre {
+  white-space: pre-wrap;
 }
