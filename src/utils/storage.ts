@@ -54,6 +54,19 @@ export function getFeedById(id: string): Feed | undefined {
   return getFeeds().find((f) => f.id === id)
 }
 
+export function deleteFeed(feedId: string): void {
+  const feeds = getFeeds().filter((f) => f.id !== feedId)
+  saveFeeds(feeds)
+  try {
+    const data = localStorage.getItem(ARTICLES_CACHE_KEY)
+    const cache: Record<string, FeedWithArticles> = data ? JSON.parse(data) : {}
+    delete cache[feedId]
+    localStorage.setItem(ARTICLES_CACHE_KEY, JSON.stringify(cache))
+  } catch {
+    // ignore
+  }
+}
+
 export function getArticlesCache(feedId: string): FeedWithArticles | null {
   try {
     const data = localStorage.getItem(ARTICLES_CACHE_KEY)

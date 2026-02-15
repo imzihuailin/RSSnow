@@ -4,6 +4,7 @@ import {
   getFeedById,
   getArticlesCache,
   setArticlesCache,
+  deleteFeed,
 } from '../utils/storage'
 import { fetchFeedWithArticles } from '../hooks/useRssParse'
 import type { Article } from '../utils/storage'
@@ -29,6 +30,7 @@ export function ArticleListPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
 
   useEffect(() => {
     if (!feedId) return
@@ -72,6 +74,12 @@ export function ArticleListPage() {
   }, [feedId])
 
   const handleBack = () => navigate('/')
+  const handleDelete = () => {
+    if (feedId) {
+      deleteFeed(feedId)
+      navigate('/')
+    }
+  }
   const handleArticleClick = (article: Article) => {
     navigate(`/read/${feedId}/${encodeURIComponent(article.id)}`)
   }
@@ -115,9 +123,48 @@ export function ArticleListPage() {
           >
             ← 返回
           </button>
-          <h1 className="text-lg font-semibold truncate">{feedTitle}</h1>
+          <h1 className="text-lg font-semibold truncate flex-1 min-w-0">{feedTitle}</h1>
+          <button
+            onClick={() => setConfirmDeleteOpen(true)}
+            className="shrink-0 px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-medium"
+          >
+            删除
+          </button>
         </div>
       </header>
+
+      {confirmDeleteOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={() => setConfirmDeleteOpen(false)}
+        >
+          <div
+            className="w-full max-w-md mx-4 bg-white dark:bg-slate-800 rounded-xl shadow-xl p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-semibold mb-2">确认删除</h2>
+            <p className="text-slate-600 dark:text-slate-400 mb-6">
+              确定要删除订阅「{feedTitle}」吗？此操作不可恢复。
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteOpen(false)}
+                className="flex-1 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="flex-1 px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-medium"
+              >
+                确定
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="max-w-3xl mx-auto px-4 py-6">
         {!loading && articles.length > 0 && (

@@ -7,6 +7,7 @@ import { fetchArticleContent } from '../hooks/useFetchArticle'
 import { ReaderToolbar, FONT_OPTIONS, BG_OPTIONS } from '../components/ReaderToolbar'
 
 const DEBOUNCE_MS = 300
+const DOUBLE_CLICK_MS = 350
 
 function flushProgressSave(
   containerRef: React.RefObject<HTMLDivElement | null>,
@@ -26,6 +27,8 @@ export function ReaderPage() {
   const containerRef = useRef<HTMLDivElement>(null)
   const saveProgressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasRestoredRef = useRef(false)
+  const lastContentClickRef = useRef(0)
+  const contentClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const feedIdRef = useRef(feedId)
   const decodedIdRef = useRef('')
 
@@ -43,6 +46,15 @@ export function ReaderPage() {
   decodedIdRef.current = decodedId
   const cached = feedId ? getArticlesCache(feedId) : null
   const article = cached?.articles?.find((a) => a.id === decodedId)
+
+  useEffect(() => {
+    return () => {
+      if (contentClickTimerRef.current) {
+        clearTimeout(contentClickTimerRef.current)
+        contentClickTimerRef.current = null
+      }
+    }
+  }, [])
 
   // 关闭标签页或切到后台时即时保存进度，防止丢失
   useEffect(() => {
@@ -190,10 +202,31 @@ export function ReaderPage() {
   }
 
   const handleContentClick = () => {
-    // 拖动选中文字时不呼出操作栏，只有点击才触发
+    const clearPending = () => {
+      if (contentClickTimerRef.current) {
+        clearTimeout(contentClickTimerRef.current)
+        contentClickTimerRef.current = null
+      }
+    }
+    // 拖动选中文字或双击选中文字时，不呼出操作栏
     const sel = window.getSelection()
-    if (sel && sel.toString().trim().length > 0) return
-    setToolbarVisible((v) => !v)
+    if (sel && sel.toString().trim().length > 0) {
+      clearPending()
+      return
+    }
+    const now = Date.now()
+    if (now - lastContentClickRef.current < DOUBLE_CLICK_MS) {
+      // 双击：取消待执行的切换，不呼出操作栏
+      clearPending()
+      lastContentClickRef.current = 0
+      return
+    }
+    lastContentClickRef.current = now
+    clearPending()
+    contentClickTimerRef.current = setTimeout(() => {
+      contentClickTimerRef.current = null
+      setToolbarVisible((v) => !v)
+    }, 250)
   }
 
   const handleBack = () => navigate(`/feed/${feedId}`)
@@ -236,10 +269,17 @@ export function ReaderPage() {
         </button>
       </div>
 
-      {/* 可滚动内容区 - 点击唤出/收起操作栏 */}
+      {/* 可滚动内容区 - 单击唤出/收起操作栏，双击不触发 */}
       <div
         ref={containerRef}
         onClick={handleContentClick}
+        onDoubleClick={() => {
+          if (contentClickTimerRef.current) {
+            clearTimeout(contentClickTimerRef.current)
+            contentClickTimerRef.current = null
+          }
+          lastContentClickRef.current = 0
+        }}
         className="flex-1 overflow-y-auto overscroll-contain pt-14 pb-8 px-4 cursor-default"
       >
         <div className="max-w-2xl mx-auto">
