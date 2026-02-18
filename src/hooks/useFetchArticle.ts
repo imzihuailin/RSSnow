@@ -54,6 +54,30 @@ const NOISE_SELECTORS = [
 
 const NEGATIVE_HINT_RE = /(nav|menu|sidebar|breadcrumb|toc|table-of-contents|目录|导航)/i
 const SENTENCE_RE = /[。！？.!?]/g
+const CONTENT_QUALITY_ERROR = 'ContentQualityError'
+
+type ValidationReason =
+  | 'too_short'
+  | 'not_enough_structure'
+  | 'high_link_density'
+  | 'nav_keyword_pattern'
+  | 'list_navigation_pattern'
+  | 'navigation_block'
+
+type ValidationResult =
+  | { isValid: true }
+  | {
+      isValid: false
+      reason: ValidationReason
+      metrics: {
+        textLength: number
+        paragraphCount: number
+        sentenceCount: number
+        linkCount: number
+        listItemCount: number
+        linkDensity: number
+      }
+    }
 
 function toAbsoluteUrl(baseUrl: string, href: string): string {
   if (!href || href.startsWith('#')) return href
@@ -284,6 +308,54 @@ function sanitizeForFallback(root: Element): void {
   })
 }
 
+function validateExtractedContent(html: string): ValidationResult {
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  const body = doc.body
+  if (!body) {
+    return {
+      isValid: false,
+      reason: 'too_short',
+      metrics: { textLength: 0, paragraphCount: 0, sentenceCount: 0, linkCount: 0, listItemCount: 0, linkDensity: 1 },
+    }
+  }
+
+  const textLength = countTextLength(body)
+  const paragraphCount = body.querySelectorAll('p').length
+  const sentenceCount = ((body.textContent || '').match(SENTENCE_RE) || []).length
+  const linkCount = body.querySelectorAll('a').length
+  const listItemCount = body.querySelectorAll('li').length
+  const linkDensity = calcLinkDensity(body, textLength)
+  const sampleText = (body.textContent || '').slice(0, 300).toLowerCase()
+  const metrics = { textLength, paragraphCount, sentenceCount, linkCount, listItemCount, linkDensity }
+
+  if (textLength < 240) return { isValid: false, reason: 'too_short', metrics }
+  if (sentenceCount < 3 && paragraphCount < 2) return { isValid: false, reason: 'not_enough_structure', metrics }
+  if (linkDensity > 0.42 && linkCount >= 6) return { isValid: false, reason: 'high_link_density', metrics }
+  if (NEGATIVE_HINT_RE.test(sampleText) && linkCount >= 4) return { isValid: false, reason: 'nav_keyword_pattern', metrics }
+  if (listItemCount >= 8 && linkCount >= Math.ceil(listItemCount * 0.7) && paragraphCount <= 1) {
+    return { isValid: false, reason: 'list_navigation_pattern', metrics }
+  }
+  if (isLikelyNavigationBlock(body, textLength, linkDensity)) return { isValid: false, reason: 'navigation_block', metrics }
+
+  return { isValid: true }
+}
+
+function logRejectedContent(reason: ValidationReason, source: string, detail?: ValidationResult): void {
+  if (!import.meta.env.DEV) return
+  const metrics = detail && !detail.isValid ? detail.metrics : undefined
+  console.debug('[content-validate] rejected', { source, reason, metrics })
+}
+
+function createContentQualityError(reason: ValidationReason): Error {
+  const err = new Error(`正文质量校验未通过: ${reason}`)
+  err.name = CONTENT_QUALITY_ERROR
+  return err
+}
+
+function isContentQualityError(err: unknown): boolean {
+  return err instanceof Error && err.name === CONTENT_QUALITY_ERROR
+}
+
 function extractContent(html: string, url: string): string {
   const doc = new DOMParser().parseFromString(html, 'text/html')
 
@@ -354,9 +426,21 @@ export async function fetchArticleContent(url: string): Promise<string> {
       }
 
       const markdownPayload = extractMarkdownPayload(html)
-      if (markdownPayload) return stripFirstH1(markdownToHtml(markdownPayload, url))
+      if (markdownPayload) {
+        const markdownHtml = stripFirstH1(markdownToHtml(markdownPayload, url))
+        const markdownValidation = validateExtractedContent(markdownHtml)
+        if (markdownValidation.isValid) return markdownHtml
+        logRejectedContent(markdownValidation.reason, 'markdown_fastpath', markdownValidation)
+        throw createContentQualityError(markdownValidation.reason)
+      }
+
       const content = extractContent(html, url)
-      if (content) return content
+      if (content) {
+        const validation = validateExtractedContent(content)
+        if (validation.isValid) return content
+        logRejectedContent(validation.reason, 'html_extract', validation)
+        throw createContentQualityError(validation.reason)
+      }
       throw new Error('未提取到正文')
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
@@ -373,8 +457,12 @@ export async function fetchArticleContent(url: string): Promise<string> {
     return await Promise.any(CORS_PROXIES.map((toProxyUrl) => runSingleProxy(toProxyUrl)))
   } catch (err) {
     if (err instanceof AggregateError) {
-      const first = err.errors?.[0]
-      const msg = first instanceof Error ? first.message : '无法抓取原文'
+      const errors = Array.isArray(err.errors) ? err.errors : []
+      const firstNonQuality = errors.find((item) => !isContentQualityError(item))
+      if (!firstNonQuality && errors.length > 0) {
+        throw new Error('抓取结果疑似目录或导航，已自动过滤。可在新窗口打开原文查看。')
+      }
+      const msg = firstNonQuality instanceof Error ? firstNonQuality.message : '无法抓取原文'
       throw new Error(`${msg}。可在新窗口打开原文查看。`)
     }
     throw new Error('无法抓取原文，请稍后重试或在新窗口打开')
