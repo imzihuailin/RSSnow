@@ -19,6 +19,11 @@ export function getReadingProgress(feedId: string, articleId: string): ProgressE
   }
 }
 
+export function isArticleRead(feedId: string, articleId: string): boolean {
+  const entry = getReadingProgress(feedId, articleId)
+  return entry !== null && entry.progress >= 95
+}
+
 export function setReadingProgress(
   feedId: string,
   articleId: string,
