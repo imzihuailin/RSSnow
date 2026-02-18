@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   getFeedById,
@@ -7,8 +7,8 @@ import {
   deleteFeed,
 } from '../utils/storage'
 import { fetchFeedWithArticles } from '../hooks/useRssParse'
-import { isArticleRead } from '../utils/readingProgress'
 import type { Article } from '../utils/storage'
+import { getReadArticleIds } from '../utils/readingProgress'
 
 function formatDate(pubDate: string): string {
   if (!pubDate) return ''
@@ -32,12 +32,16 @@ export function ArticleListPage() {
   const [error, setError] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
-  const [readSet, setReadSet] = useState<Set<string>>(new Set())
+  const [readIds, setReadIds] = useState<Set<string>>(() =>
+    feedId ? getReadArticleIds(feedId) : new Set()
+  )
 
-  const refreshReadSet = useCallback((articleList: Article[]) => {
-    if (!feedId || articleList.length === 0) return
-    const ids = new Set(articleList.filter((a) => isArticleRead(feedId, a.id)).map((a) => a.id))
-    setReadSet(ids)
+  // 从阅读页返回（Tab 切换 / 可见性变化）时刷新已读集合
+  useEffect(() => {
+    if (!feedId) return
+    const refresh = () => setReadIds(getReadArticleIds(feedId))
+    document.addEventListener('visibilitychange', refresh)
+    return () => document.removeEventListener('visibilitychange', refresh)
   }, [feedId])
 
   useEffect(() => {
@@ -55,7 +59,6 @@ export function ArticleListPage() {
     const cached = getArticlesCache(feedId)
     if (cached?.articles?.length) {
       setArticles(cached.articles)
-      refreshReadSet(cached.articles)
       setLoading(false)
       return
     }
@@ -68,7 +71,6 @@ export function ArticleListPage() {
           return db - da
         })
         setArticles(sorted)
-        refreshReadSet(sorted)
         setArticlesCache(feedId, {
           feed,
           articles: sorted,
@@ -81,16 +83,7 @@ export function ArticleListPage() {
       .finally(() => {
         setLoading(false)
       })
-  }, [feedId, refreshReadSet])
-
-  // 从阅读页返回时刷新已读状态
-  useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') refreshReadSet(articles)
-    }
-    document.addEventListener('visibilitychange', onVisible)
-    return () => document.removeEventListener('visibilitychange', onVisible)
-  }, [articles, refreshReadSet])
+  }, [feedId])
 
   const handleBack = () => navigate('/')
   const handleDelete = () => {
@@ -213,31 +206,31 @@ export function ArticleListPage() {
         ) : (
           <ul className="space-y-2">
             {filteredArticles.map((article) => {
-              const read = readSet.has(article.id)
+              const isRead = readIds.has(article.id)
               return (
                 <li key={article.id}>
                   <button
                     onClick={() => handleArticleClick(article)}
-                    className={`w-full text-left px-4 py-3 rounded-lg border transition-colors hover:border-blue-500 dark:hover:border-blue-500 ${
-                      read
-                        ? 'bg-slate-100 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700/50'
-                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                    className={`w-full text-left px-4 py-3 rounded-lg border transition-colors ${
+                      isRead
+                        ? 'bg-slate-50 dark:bg-slate-800/40 border-slate-200/60 dark:border-slate-700/40 hover:border-slate-300 dark:hover:border-slate-600'
+                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-blue-500 dark:hover:border-blue-500'
                     }`}
                   >
                     <h3
-                      className={`font-medium line-clamp-2 transition-opacity ${
-                        read
-                          ? 'text-slate-400 dark:text-slate-500 opacity-60'
+                      className={`font-medium line-clamp-2 ${
+                        isRead
+                          ? 'text-slate-400 dark:text-slate-500'
                           : 'text-slate-900 dark:text-slate-100'
                       }`}
                     >
                       {article.title || '无标题'}
                     </h3>
-                    <p className={`text-sm mt-1 ${read ? 'text-slate-400 dark:text-slate-500' : 'text-slate-500 dark:text-slate-400'}`}>
+                    <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">
                       {formatDate(article.pubDate)}
                     </p>
-                    {article.description && (
-                      <p className={`text-sm mt-1 line-clamp-2 ${read ? 'text-slate-400 dark:text-slate-500 opacity-60' : 'text-slate-600 dark:text-slate-400'}`}>
+                    {article.description && !isRead && (
+                      <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 line-clamp-2">
                         {article.description.replace(/<[^>]+>/g, '').slice(0, 100)}…
                       </p>
                     )}

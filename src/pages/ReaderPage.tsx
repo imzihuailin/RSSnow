@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getArticlesCache, getFetchedContent, setFetchedContent } from '../utils/storage'
-import { getReadingProgress, setReadingProgress } from '../utils/readingProgress'
+import { getReadingProgress, setReadingProgress, markArticleRead } from '../utils/readingProgress'
 import { getReadingPreferences, saveReadingPreferences } from '../utils/preferences'
 import { fetchArticleContent } from '../hooks/useFetchArticle'
 import { ReaderToolbar, FONT_OPTIONS, BG_OPTIONS } from '../components/ReaderToolbar'
@@ -27,6 +27,7 @@ export function ReaderPage() {
   const containerRef = useRef<HTMLDivElement>(null)
   const saveProgressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasRestoredRef = useRef(false)
+  const hasMarkedReadRef = useRef(false)
   const lastContentClickRef = useRef(0)
   const contentClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const feedIdRef = useRef(feedId)
@@ -77,17 +78,26 @@ export function ReaderPage() {
     }
   }, [])
 
-  // 切换文章时重置恢复标记
+  // 切换文章时重置恢复/已读标记
   useEffect(() => {
     hasRestoredRef.current = false
+    hasMarkedReadRef.current = false
   }, [feedId, decodedId])
+
+  // 进度首次到达 100% 时标记为已读（此后不会因再次未读完而撤销）
+  useEffect(() => {
+    if (progress >= 100 && !hasMarkedReadRef.current && feedId && decodedId) {
+      hasMarkedReadRef.current = true
+      markArticleRead(feedId, decodedId)
+    }
+  }, [progress, feedId, decodedId])
   const [fetchedContent, setFetchedContentState] = useState<string | null>(null)
   const [fetching, setFetching] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!article) return
-    if (article.content || article.description) return
+    if (article.content) return
     const cached = getFetchedContent(article.link)
     if (cached) setFetchedContentState(cached)
   }, [article])
@@ -140,7 +150,7 @@ export function ReaderPage() {
   }, [fontId, fontSize, lineHeight, bgId, brightness])
 
   // 进入页面时恢复阅读进度（上次读到哪里，下次接着读）
-  const contentReady = article && (article.content || article.description || fetchedContent || fetchError)
+  const contentReady = article && (article.content || fetchedContent || fetchError)
   useEffect(() => {
     if (!contentReady || !feedId || !decodedId || hasRestoredRef.current) return
     const saved = getReadingProgress(feedId, decodedId)
@@ -172,7 +182,7 @@ export function ReaderPage() {
     }
   }, [contentReady, feedId, decodedId])
 
-  const needsFetch = article && !article.content && !article.description && !fetchedContent && !fetching && !fetchError
+  const needsFetch = article && !article.content && !fetchedContent && !fetching && !fetchError
   useEffect(() => {
     if (!needsFetch || !article?.link) return
     setFetching(true)
@@ -288,7 +298,7 @@ export function ReaderPage() {
           </h1>
           {fetching ? (
             <p className="opacity-80 py-8">抓取原文中…</p>
-          ) : (article.content || article.description || fetchedContent) ? (
+          ) : (article.content || fetchedContent) ? (
               <article
                 className={`reader-content [&_img]:max-w-full [&_a]:hover:underline [&_p]:my-4 [&_h1]:text-2xl [&_h2]:text-xl [&_h3]:text-lg [&_ul]:my-2 [&_ol]:my-2 ${
                   bgId === 'dark' ? '[&_a]:text-sky-300' : '[&_a]:text-blue-600'
@@ -297,7 +307,6 @@ export function ReaderPage() {
                 dangerouslySetInnerHTML={{
                   __html:
                     article.content ||
-                    article.description ||
                     fetchedContent ||
                     '暂无正文',
                 }}
