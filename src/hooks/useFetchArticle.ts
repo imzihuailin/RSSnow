@@ -20,10 +20,40 @@ const CONTENT_SELECTORS = [
   '.post',
   '#content',
   '.prose',
+  '.post-body',
+  '.entry',
+  '.article',
   'td[width="435"]',
-  'body > table td',
-  'body > div',
 ]
+
+const NOISE_SELECTORS = [
+  'script',
+  'style',
+  'nav',
+  'header',
+  'footer',
+  'aside',
+  'form',
+  'iframe',
+  '[role="navigation"]',
+  '[role="banner"]',
+  '[role="contentinfo"]',
+  '.nav',
+  '.navbar',
+  '.navigation',
+  '.menu',
+  '.sidebar',
+  '.breadcrumb',
+  '.toc',
+  '.table-of-contents',
+  '#nav',
+  '#menu',
+  '#sidebar',
+  '#toc',
+]
+
+const NEGATIVE_HINT_RE = /(nav|menu|sidebar|breadcrumb|toc|table-of-contents|目录|导航)/i
+const SENTENCE_RE = /[。！？.!?]/g
 
 function toAbsoluteUrl(baseUrl: string, href: string): string {
   if (!href || href.startsWith('#')) return href
@@ -189,19 +219,85 @@ function stripFirstH1(html: string): string {
   return doc.body?.innerHTML || ''
 }
 
+function countTextLength(el: Element): number {
+  return (el.textContent || '').replace(/\s+/g, ' ').trim().length
+}
+
+function calcLinkDensity(el: Element, textLen: number): number {
+  if (textLen <= 0) return 1
+  let linkTextLen = 0
+  el.querySelectorAll('a').forEach((a) => {
+    linkTextLen += ((a.textContent || '').replace(/\s+/g, ' ').trim().length)
+  })
+  return linkTextLen / textLen
+}
+
+function getClassIdToken(el: Element): string {
+  return `${el.id || ''} ${el.getAttribute('class') || ''}`.toLowerCase()
+}
+
+function isLikelyNavigationBlock(el: Element, textLen?: number, linkDensity?: number): boolean {
+  const contentLen = textLen ?? countTextLength(el)
+  if (contentLen === 0) return true
+  const density = linkDensity ?? calcLinkDensity(el, contentLen)
+  const links = el.querySelectorAll('a').length
+  const listItems = el.querySelectorAll('li').length
+  const classId = getClassIdToken(el)
+  const text = (el.textContent || '').slice(0, 300).toLowerCase()
+
+  if (NEGATIVE_HINT_RE.test(classId)) return true
+  if (NEGATIVE_HINT_RE.test(text) && links >= 4) return true
+  if (density > 0.5 && links >= 5) return true
+  if (listItems >= 6 && links >= Math.ceil(listItems * 0.7)) return true
+  if (contentLen < 500 && density > 0.35 && links >= 3) return true
+  return false
+}
+
+function scoreContentCandidate(el: Element): number {
+  const textLen = countTextLength(el)
+  if (textLen < 200) return Number.NEGATIVE_INFINITY
+
+  const linkDensity = calcLinkDensity(el, textLen)
+  if (isLikelyNavigationBlock(el, textLen, linkDensity)) return Number.NEGATIVE_INFINITY
+
+  const paragraphs = el.querySelectorAll('p').length
+  const headings = el.querySelectorAll('h2, h3, h4').length
+  const images = el.querySelectorAll('img').length
+  const listItems = el.querySelectorAll('li').length
+  const sentenceCount = ((el.textContent || '').match(SENTENCE_RE) || []).length
+
+  let score = textLen
+  score += paragraphs * 80
+  score += Math.min(sentenceCount, 40) * 30
+  score += headings * 40
+  score += images * 25
+  score -= linkDensity * 1800
+  score -= Math.max(0, listItems - paragraphs * 2) * 25
+
+  return score
+}
+
+function sanitizeForFallback(root: Element): void {
+  root.querySelectorAll(NOISE_SELECTORS.join(', ')).forEach((el) => el.remove())
+  root.querySelectorAll('section, div, ul, ol, table').forEach((el) => {
+    if (isLikelyNavigationBlock(el)) el.remove()
+  })
+}
+
 function extractContent(html: string, url: string): string {
   const doc = new DOMParser().parseFromString(html, 'text/html')
 
-  doc.querySelectorAll('script, style, nav, header, footer, aside, form, iframe').forEach((el) => el.remove())
+  doc.querySelectorAll(NOISE_SELECTORS.join(', ')).forEach((el) => el.remove())
 
-  let best: { el: Element; len: number } | null = null
+  let best: { el: Element; score: number } | null = null
 
   for (const sel of CONTENT_SELECTORS) {
     const els = doc.querySelectorAll(sel)
     for (const el of Array.from(els)) {
-      const text = el.textContent?.trim() || ''
-      if (text.length > 200 && (!best || text.length > best.len)) {
-        best = { el, len: text.length }
+      if (el.closest('nav, header, footer, aside, [role="navigation"], [role="banner"], [role="contentinfo"]')) continue
+      const score = scoreContentCandidate(el)
+      if (score !== Number.NEGATIVE_INFINITY && (!best || score > best.score)) {
+        best = { el, score }
       }
     }
   }
@@ -215,18 +311,25 @@ function extractContent(html: string, url: string): string {
   if (!body) return ''
 
   const tables = body.querySelectorAll('table')
+  let bestTable: { el: Element; score: number } | null = null
   for (const table of Array.from(tables)) {
-    const text = table.textContent?.trim() || ''
-    if (text.length > 300) {
-      const html = makeLinksAbsolute(table.innerHTML, url)
-      return stripFirstH1(html)
+    const score = scoreContentCandidate(table)
+    if (score !== Number.NEGATIVE_INFINITY && (!bestTable || score > bestTable.score)) {
+      bestTable = { el: table, score }
     }
   }
+  if (bestTable) {
+    const html = makeLinksAbsolute(bestTable.el.innerHTML, url)
+    return stripFirstH1(html)
+  }
 
-  const text = body.textContent?.trim() || ''
-  const bodyHtml = body.innerHTML || ''
+  const bodyClone = body.cloneNode(true) as HTMLElement
+  sanitizeForFallback(bodyClone)
+  const text = bodyClone.textContent?.trim() || ''
+  const bodyHtml = bodyClone.innerHTML || ''
   // 仅当 body 本身包含结构化标签时，才走 HTML 兜底；纯文本交给 Markdown/文本转换逻辑
   if (text.length > 200 && /<[^>]+>/.test(bodyHtml)) {
+    if (isLikelyNavigationBlock(bodyClone, text.length, calcLinkDensity(bodyClone, text.length))) return ''
     const html = makeLinksAbsolute(bodyHtml, url)
     return stripFirstH1(html)
   }
