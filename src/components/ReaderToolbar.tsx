@@ -33,6 +33,8 @@ interface ReaderToolbarProps {
   onFontSizeChange: (value: number) => void
   lineHeight: number
   onLineHeightChange: (value: number) => void
+  pagePadding: number
+  onPagePaddingChange: (value: number) => void
   fontId: string
   onFontChange: (id: string) => void
   bgId: string
@@ -49,6 +51,8 @@ export function ReaderToolbar({
   onFontSizeChange,
   lineHeight,
   onLineHeightChange,
+  pagePadding,
+  onPagePaddingChange,
   fontId,
   onFontChange,
   bgId,
@@ -197,6 +201,19 @@ export function ReaderToolbar({
                     className={SLIDER_STYLES}
                   />
                   <span className="text-xs opacity-75 shrink-0 w-10">{lineHeight.toFixed(1)}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs opacity-75 shrink-0 w-10">边距</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="30"
+                    step="1"
+                    value={pagePadding}
+                    onChange={(e) => onPagePaddingChange(parseInt(e.target.value, 10))}
+                    className={SLIDER_STYLES}
+                  />
+                  <span className="text-xs opacity-75 shrink-0 w-10">{pagePadding}%</span>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs opacity-75 shrink-0">字体</span>

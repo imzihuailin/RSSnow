@@ -39,6 +39,7 @@ export function ReaderPage() {
   const [fontId, setFontId] = useState(prefs.fontId)
   const [fontSize, setFontSize] = useState(prefs.fontSize)
   const [lineHeight, setLineHeight] = useState(prefs.lineHeight)
+  const [pagePadding, setPagePadding] = useState(prefs.pagePadding)
   const [bgId, setBgId] = useState(prefs.bgId)
   const [brightness, setBrightness] = useState(prefs.brightness)
 
@@ -146,8 +147,8 @@ export function ReaderPage() {
 
   // 偏好变更时持久化
   useEffect(() => {
-    saveReadingPreferences({ fontId, fontSize, lineHeight, bgId, brightness })
-  }, [fontId, fontSize, lineHeight, bgId, brightness])
+    saveReadingPreferences({ fontId, fontSize, lineHeight, pagePadding, bgId, brightness })
+  }, [fontId, fontSize, lineHeight, pagePadding, bgId, brightness])
 
   // 进入页面时恢复阅读进度（上次读到哪里，下次接着读）
   const contentReady = article && (article.content || fetchedContent || fetchError)
@@ -292,7 +293,7 @@ export function ReaderPage() {
         }}
         className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain pt-14 pb-8 px-3 sm:px-4 cursor-default"
       >
-        <div className="max-w-2xl mx-auto">
+        <div className="mx-auto" style={{ maxWidth: pagePadding > 0 ? `${100 - pagePadding * 2}%` : '100%' }}>
           <h1 className="font-bold mb-6" style={{ fontFamily: font.fontFamily, fontSize: `${fontSize * 1.25}px`, lineHeight }}>
             {article.title}
           </h1>
@@ -362,6 +363,8 @@ export function ReaderPage() {
         onFontSizeChange={setFontSize}
         lineHeight={lineHeight}
         onLineHeightChange={setLineHeight}
+        pagePadding={pagePadding}
+        onPagePaddingChange={setPagePadding}
         fontId={fontId}
         onFontChange={setFontId}
         bgId={bgId}

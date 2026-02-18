@@ -4,6 +4,7 @@ export interface ReadingPreferences {
   fontId: string
   fontSize: number
   lineHeight: number
+  pagePadding: number
   bgId: string
   brightness: number
 }
@@ -12,6 +13,7 @@ const DEFAULTS: ReadingPreferences = {
   fontId: 'serif',
   fontSize: 18,
   lineHeight: 1.6,
+  pagePadding: 15,
   bgId: 'white',
   brightness: 1,
 }
@@ -25,6 +27,7 @@ export function getReadingPreferences(): ReadingPreferences {
       fontId: typeof raw.fontId === 'string' ? raw.fontId : DEFAULTS.fontId,
       fontSize: typeof raw.fontSize === 'number' ? Math.max(14, Math.min(24, raw.fontSize)) : DEFAULTS.fontSize,
       lineHeight: typeof raw.lineHeight === 'number' ? Math.max(1.2, Math.min(2.2, raw.lineHeight)) : DEFAULTS.lineHeight,
+      pagePadding: typeof raw.pagePadding === 'number' ? Math.max(0, Math.min(30, raw.pagePadding)) : DEFAULTS.pagePadding,
       bgId: typeof raw.bgId === 'string' ? raw.bgId : DEFAULTS.bgId,
       brightness: typeof raw.brightness === 'number' ? Math.max(0.5, Math.min(1.5, raw.brightness)) : DEFAULTS.brightness,
     }
