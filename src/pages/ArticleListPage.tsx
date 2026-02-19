@@ -85,6 +85,19 @@ export function ArticleListPage() {
       })
   }, [feedId])
 
+  // 文章列表渲染完毕后恢复之前保存的滚动位置
+  useEffect(() => {
+    if (loading || articles.length === 0 || !feedId) return
+    const key = `articleListScroll_${feedId}`
+    const saved = sessionStorage.getItem(key)
+    if (saved) {
+      sessionStorage.removeItem(key)
+      requestAnimationFrame(() => {
+        window.scrollTo(0, parseInt(saved, 10))
+      })
+    }
+  }, [loading, articles.length, feedId])
+
   const handleBack = () => navigate('/')
   const handleDelete = () => {
     if (feedId) {
@@ -93,6 +106,7 @@ export function ArticleListPage() {
     }
   }
   const handleArticleClick = (article: Article) => {
+    if (feedId) sessionStorage.setItem(`articleListScroll_${feedId}`, String(window.scrollY))
     navigate(`/read/${feedId}/${encodeURIComponent(article.id)}`)
   }
 

@@ -11,16 +11,25 @@ const DOUBLE_CLICK_MS = 350
 const SETTLE_MS = 500
 const JUMP_THRESHOLD_SCREENS = 2
 
+function getEffectiveProgress(rawPct: number, jumpOriginPct: number | null): number {
+  if (jumpOriginPct === null) return rawPct
+  return jumpOriginPct
+}
+
 function flushProgressSave(
   containerRef: React.RefObject<HTMLDivElement | null>,
   feedId: string | undefined,
-  decodedId: string
+  decodedId: string,
+  jumpOriginPct: number | null
 ) {
   const el = containerRef.current
   if (!el || !feedId || !decodedId) return
   const { scrollTop, scrollHeight, clientHeight } = el
   const maxScroll = scrollHeight - clientHeight
-  if (maxScroll > 0) setReadingProgress(feedId, decodedId, (scrollTop / maxScroll) * 100)
+  if (maxScroll > 0) {
+    const rawPct = (scrollTop / maxScroll) * 100
+    setReadingProgress(feedId, decodedId, getEffectiveProgress(rawPct, jumpOriginPct))
+  }
 }
 
 export function ReaderPage() {
@@ -42,6 +51,7 @@ export function ReaderPage() {
   const prefs = getReadingPreferences()
   const [toolbarVisible, setToolbarVisible] = useState(false)
   const [progress, setProgress] = useState(0)
+  const [effectiveProgress, setEffectiveProgress] = useState(0)
   const [jumpOriginPct, setJumpOriginPct] = useState<number | null>(null)
   const [fontId, setFontId] = useState(prefs.fontId)
   const [fontSize, setFontSize] = useState(prefs.fontSize)
@@ -73,7 +83,7 @@ export function ReaderPage() {
         clearTimeout(saveProgressTimerRef.current)
         saveProgressTimerRef.current = null
       }
-      flushProgressSave(containerRef, feedIdRef.current, decodedIdRef.current)
+      flushProgressSave(containerRef, feedIdRef.current, decodedIdRef.current, jumpOriginPctRef.current)
     }
     const onBeforeUnload = () => flush()
     const onVisibilityChange = () => {
@@ -93,13 +103,13 @@ export function ReaderPage() {
     hasMarkedReadRef.current = false
   }, [feedId, decodedId])
 
-  // 进度首次到达 100% 时标记为已读（此后不会因再次未读完而撤销）
+  // 真实进度首次到达 100% 时标记为已读（此后不会因再次未读完而撤销）
   useEffect(() => {
-    if (progress >= 100 && !hasMarkedReadRef.current && feedId && decodedId) {
+    if (effectiveProgress >= 100 && !hasMarkedReadRef.current && feedId && decodedId) {
       hasMarkedReadRef.current = true
       markArticleRead(feedId, decodedId)
     }
-  }, [progress, feedId, decodedId])
+  }, [effectiveProgress, feedId, decodedId])
   const [fetchedContent, setFetchedContentState] = useState<string | null>(null)
   const [fetching, setFetching] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
@@ -121,14 +131,17 @@ export function ReaderPage() {
     const maxScroll = scrollHeight - clientHeight
     if (maxScroll <= 0) {
       setProgress(100)
+      setEffectiveProgress(100)
       return
     }
-    const pct = (scrollTop / maxScroll) * 100
-    setProgress(pct)
+    const rawPct = (scrollTop / maxScroll) * 100
+    setProgress(rawPct)
+    const effectivePct = getEffectiveProgress(rawPct, jumpOriginPctRef.current)
+    setEffectiveProgress(effectivePct)
     // 防抖保存进度
     if (saveProgressTimerRef.current) clearTimeout(saveProgressTimerRef.current)
     saveProgressTimerRef.current = setTimeout(() => {
-      if (feedId && decodedId) setReadingProgress(feedId, decodedId, pct)
+      if (feedId && decodedId) setReadingProgress(feedId, decodedId, effectivePct)
       saveProgressTimerRef.current = null
     }, DEBOUNCE_MS)
     // 停留点检测：500ms 无新 scroll → 用户已停下，比较与上一停留点的距离
@@ -149,9 +162,14 @@ export function ReaderPage() {
       const settledTop = (settledPctRef.current / 100) * curMax
       const delta = Math.abs(curTop - settledTop)
       if (delta > curCH * JUMP_THRESHOLD_SCREENS) {
-        setJumpOriginPct(settledPctRef.current)
+        const originPct = settledPctRef.current
+        setJumpOriginPct(originPct)
+        setEffectiveProgress(originPct)
+        if (feedId && decodedId) setReadingProgress(feedId, decodedId, originPct)
       } else if (jumpOriginPctRef.current !== null && Math.abs(curPct - jumpOriginPctRef.current) < 3) {
         setJumpOriginPct(null)
+        setEffectiveProgress(curPct)
+        if (feedId && decodedId) setReadingProgress(feedId, decodedId, curPct)
       }
       settledPctRef.current = curPct
     }, SETTLE_MS)
@@ -176,7 +194,8 @@ export function ReaderPage() {
       const { scrollTop, scrollHeight, clientHeight } = el
       const maxScroll = scrollHeight - clientHeight
       if (maxScroll > 0 && feedId && decodedId) {
-        setReadingProgress(feedId, decodedId, (scrollTop / maxScroll) * 100)
+        const rawPct = (scrollTop / maxScroll) * 100
+        setReadingProgress(feedId, decodedId, getEffectiveProgress(rawPct, jumpOriginPctRef.current))
       }
     }
   }, [updateProgress, article, feedId, decodedId])
@@ -206,6 +225,7 @@ export function ReaderPage() {
         el.scrollTop = (pct / 100) * maxScroll
         settledPctRef.current = pct
         setProgress(pct)
+        setEffectiveProgress(pct)
         hasRestoredRef.current = true
         return
       }
@@ -247,7 +267,9 @@ export function ReaderPage() {
     if (maxScroll <= 0) return
     el.scrollTop = (value / 100) * maxScroll
     setProgress(value)
-    if (feedId && decodedId) setReadingProgress(feedId, decodedId, value)
+    const effectiveValue = getEffectiveProgress(value, jumpOriginPctRef.current)
+    setEffectiveProgress(effectiveValue)
+    if (feedId && decodedId) setReadingProgress(feedId, decodedId, effectiveValue)
   }
 
   const handleContentClick = () => {
