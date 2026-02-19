@@ -8,6 +8,8 @@ import { ReaderToolbar, FONT_OPTIONS, BG_OPTIONS } from '../components/ReaderToo
 
 const DEBOUNCE_MS = 300
 const DOUBLE_CLICK_MS = 350
+const SETTLE_MS = 500
+const JUMP_THRESHOLD_SCREENS = 2
 
 function flushProgressSave(
   containerRef: React.RefObject<HTMLDivElement | null>,
@@ -32,10 +34,15 @@ export function ReaderPage() {
   const contentClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const feedIdRef = useRef(feedId)
   const decodedIdRef = useRef('')
+  const settledPctRef = useRef(0)
+  const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const ignoreJumpRef = useRef(false)
+  const jumpOriginPctRef = useRef<number | null>(null)
 
   const prefs = getReadingPreferences()
   const [toolbarVisible, setToolbarVisible] = useState(false)
   const [progress, setProgress] = useState(0)
+  const [jumpOriginPct, setJumpOriginPct] = useState<number | null>(null)
   const [fontId, setFontId] = useState(prefs.fontId)
   const [fontSize, setFontSize] = useState(prefs.fontSize)
   const [lineHeight, setLineHeight] = useState(prefs.lineHeight)
@@ -46,6 +53,7 @@ export function ReaderPage() {
   const decodedId = articleId ? decodeURIComponent(articleId) : ''
   feedIdRef.current = feedId ?? ''
   decodedIdRef.current = decodedId
+  jumpOriginPctRef.current = jumpOriginPct
   const cached = feedId ? getArticlesCache(feedId) : null
   const article = cached?.articles?.find((a) => a.id === decodedId)
 
@@ -123,6 +131,30 @@ export function ReaderPage() {
       if (feedId && decodedId) setReadingProgress(feedId, decodedId, pct)
       saveProgressTimerRef.current = null
     }, DEBOUNCE_MS)
+    // 停留点检测：500ms 无新 scroll → 用户已停下，比较与上一停留点的距离
+    if (settleTimerRef.current) clearTimeout(settleTimerRef.current)
+    settleTimerRef.current = setTimeout(() => {
+      settleTimerRef.current = null
+      const cur = containerRef.current
+      if (!cur) return
+      const { scrollTop: curTop, scrollHeight: curSH, clientHeight: curCH } = cur
+      const curMax = curSH - curCH
+      if (curMax <= 0) return
+      const curPct = (curTop / curMax) * 100
+      if (ignoreJumpRef.current) {
+        ignoreJumpRef.current = false
+        settledPctRef.current = curPct
+        return
+      }
+      const settledTop = (settledPctRef.current / 100) * curMax
+      const delta = Math.abs(curTop - settledTop)
+      if (delta > curCH * JUMP_THRESHOLD_SCREENS) {
+        setJumpOriginPct(settledPctRef.current)
+      } else if (jumpOriginPctRef.current !== null && Math.abs(curPct - jumpOriginPctRef.current) < 3) {
+        setJumpOriginPct(null)
+      }
+      settledPctRef.current = curPct
+    }, SETTLE_MS)
   }, [feedId, decodedId])
 
   useEffect(() => {
@@ -135,6 +167,10 @@ export function ReaderPage() {
       if (saveProgressTimerRef.current) {
         clearTimeout(saveProgressTimerRef.current)
         saveProgressTimerRef.current = null
+      }
+      if (settleTimerRef.current) {
+        clearTimeout(settleTimerRef.current)
+        settleTimerRef.current = null
       }
       // 离开页面前即时保存当前进度
       const { scrollTop, scrollHeight, clientHeight } = el
@@ -166,7 +202,9 @@ export function ReaderPage() {
       const { scrollHeight, clientHeight } = el
       const maxScroll = scrollHeight - clientHeight
       if (maxScroll > 0) {
+        ignoreJumpRef.current = true
         el.scrollTop = (pct / 100) * maxScroll
+        settledPctRef.current = pct
         setProgress(pct)
         hasRestoredRef.current = true
         return
@@ -238,6 +276,17 @@ export function ReaderPage() {
       contentClickTimerRef.current = null
       setToolbarVisible((v) => !v)
     }, 250)
+  }
+
+  const handleReturnToOrigin = () => {
+    const el = containerRef.current
+    if (!el || jumpOriginPct === null) return
+    const { scrollHeight, clientHeight } = el
+    const maxScroll = scrollHeight - clientHeight
+    if (maxScroll <= 0) return
+    ignoreJumpRef.current = true
+    el.scrollTo({ top: (jumpOriginPct / 100) * maxScroll, behavior: 'smooth' })
+    setJumpOriginPct(null)
   }
 
   const handleBack = () => navigate(`/feed/${feedId}`)
@@ -338,6 +387,26 @@ export function ReaderPage() {
             </a>
           </p>
         </div>
+      </div>
+
+      {/* 回到原进度按钮 */}
+      <div
+        className={`fixed bottom-24 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 ease-out ${
+          jumpOriginPct !== null
+            ? 'translate-y-0 opacity-100'
+            : 'translate-y-4 opacity-0 pointer-events-none'
+        }`}
+      >
+        <button
+          onClick={(e) => { e.stopPropagation(); handleReturnToOrigin() }}
+          className="px-4 py-2 rounded-full backdrop-blur-md shadow-lg text-sm font-medium transition-colors"
+          style={{
+            backgroundColor: bgId === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+            color: bg.text,
+          }}
+        >
+          ↑ 回到原进度
+        </button>
       </div>
 
       {/* 屏幕亮度遮罩：覆盖整个阅读区域，模拟调节屏幕亮度 */}
