@@ -6,6 +6,27 @@ const CORS_PROXIES = [
   (u: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
 ]
 
+function scoreContentCandidate(text: string): number {
+  const trimmed = text.trim()
+  if (!trimmed) return 0
+  const textLen = trimmed.replace(/\s+/g, ' ').length
+  const hasHtml = /<[^>]+>/.test(trimmed)
+  return textLen + (hasHtml ? 300 : 0)
+}
+
+function pickBestContent(candidates: string[]): string {
+  let best = ''
+  let bestScore = 0
+  for (const value of candidates) {
+    const score = scoreContentCandidate(value)
+    if (score > bestScore) {
+      best = value.trim()
+      bestScore = score
+    }
+  }
+  return best
+}
+
 function parseItem(el: Element, index: number): Article {
   const getText = (sel: string) => el.querySelector(sel)?.textContent?.trim() || ''
   const getLink = () => {
@@ -14,17 +35,27 @@ function parseItem(el: Element, index: number): Article {
     return href?.getAttribute('href') || linkEl?.getAttribute('href') || linkEl?.textContent?.trim() || ''
   }
   const getContent = () => {
-    const desc = el.querySelector('description')
-    const contentEncoded = Array.from(el.children).find(
-      (c) => String(c.tagName || '').toLowerCase().includes('encoded')
-    )
-    return (
-      contentEncoded?.innerHTML ||
-      contentEncoded?.textContent?.trim() ||
-      desc?.innerHTML ||
-      desc?.textContent?.trim() ||
-      ''
-    )
+    const childEls = Array.from(el.children)
+    const byName = (names: string[]) =>
+      childEls.filter((c) => {
+        const fullName = String(c.tagName || '').toLowerCase()
+        const localName = String(c.localName || '').toLowerCase()
+        return names.includes(fullName) || names.includes(localName)
+      })
+
+    const contentCandidates = [
+      ...byName(['content:encoded', 'encoded', 'content', 'description', 'summary']),
+      ...childEls.filter((c) => String(c.tagName || '').toLowerCase().includes('encoded')),
+    ]
+
+    const candidates: string[] = []
+    for (const node of contentCandidates) {
+      if (node.innerHTML) candidates.push(node.innerHTML)
+      const text = node.textContent?.trim()
+      if (text) candidates.push(text)
+    }
+
+    return pickBestContent(candidates)
   }
   const getDate = () => {
     const pub = el.querySelector('pubDate')
@@ -93,8 +124,15 @@ function parseFeedWithArticles(xmlText: string): {
       const getText = (sel: string) => el.querySelector(sel)?.textContent?.trim() || ''
       const linkHref = el.querySelector('link[href]')?.getAttribute('href') ||
         el.querySelector('link')?.textContent?.trim() || ''
-      const contentEl = el.querySelector('content, summary')
-      const content = contentEl?.innerHTML || contentEl?.textContent?.trim() || ''
+      const contentEls = Array.from(el.querySelectorAll('content, summary'))
+      const contentCandidates = contentEls.flatMap((node) => {
+        const values: string[] = []
+        if (node.innerHTML) values.push(node.innerHTML)
+        const text = node.textContent?.trim()
+        if (text) values.push(text)
+        return values
+      })
+      const content = pickBestContent(contentCandidates)
       const updated = el.querySelector('updated, published')
       const pubDate = updated?.textContent?.trim() || ''
       const pathPart = linkHref.split('/').filter(Boolean).pop()?.replace(/[^a-zA-Z0-9-_]/g, '_') || String(i)

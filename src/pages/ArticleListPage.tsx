@@ -26,8 +26,8 @@ function formatDate(pubDate: string): string {
 export function ArticleListPage() {
   const { feedId } = useParams<{ feedId: string }>()
   const navigate = useNavigate()
+  const feedTitle = (feedId ? getFeedById(feedId)?.title : '') ?? ''
   const [articles, setArticles] = useState<Article[]>([])
-  const [feedTitle, setFeedTitle] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
@@ -49,17 +49,19 @@ export function ArticleListPage() {
 
     const feed = getFeedById(feedId)
     if (!feed) {
-      setError('订阅不存在')
-      setLoading(false)
+      queueMicrotask(() => {
+        setError('订阅不存在')
+        setLoading(false)
+      })
       return
     }
 
-    setFeedTitle(feed.title)
-
     const cached = getArticlesCache(feedId)
     if (cached?.articles?.length) {
-      setArticles(cached.articles)
-      setLoading(false)
+      queueMicrotask(() => {
+        setArticles(cached.articles)
+        setLoading(false)
+      })
       return
     }
 
@@ -225,29 +227,32 @@ export function ArticleListPage() {
                 <li key={article.id}>
                   <button
                     onClick={() => handleArticleClick(article)}
-                    className={`w-full text-left px-4 py-3 rounded-lg border transition-colors ${
+                    className={`w-full text-left px-4 py-3 rounded-lg border transition-colors flex items-start gap-3 ${
                       isRead
                         ? 'bg-slate-50 dark:bg-slate-800/40 border-slate-200/60 dark:border-slate-700/40 hover:border-slate-300 dark:hover:border-slate-600'
                         : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-blue-500 dark:hover:border-blue-500'
                     }`}
                   >
-                    <h3
-                      className={`font-medium line-clamp-2 ${
-                        isRead
-                          ? 'text-slate-400 dark:text-slate-500'
-                          : 'text-slate-900 dark:text-slate-100'
-                      }`}
-                    >
-                      {article.title || '无标题'}
-                    </h3>
-                    <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">
-                      {formatDate(article.pubDate)}
-                    </p>
-                    {article.description && !isRead && (
-                      <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 line-clamp-2">
-                        {article.description.replace(/<[^>]+>/g, '').slice(0, 100)}…
+                    <div className="flex-1 min-w-0">
+                      <h3
+                        className={`font-medium line-clamp-2 ${
+                          isRead
+                            ? 'text-slate-400 dark:text-slate-500'
+                            : 'text-slate-900 dark:text-slate-100'
+                        }`}
+                      >
+                        {article.title || '无标题'}
+                      </h3>
+                      <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">
+                        {formatDate(article.pubDate)}
                       </p>
-                    )}
+                      {article.description && !isRead && (
+                        <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 line-clamp-2">
+                          {article.description.replace(/<[^>]+>/g, '').slice(0, 100)}…
+                        </p>
+                      )}
+                    </div>
+                    {isRead && <span className="shrink-0 text-base mt-0.5">✅</span>}
                   </button>
                 </li>
               )

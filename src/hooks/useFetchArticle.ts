@@ -1,3 +1,6 @@
+import DOMPurify from 'dompurify'
+import { marked } from 'marked'
+
 const CORS_PROXIES = [
   // r.jina.ai 对部分站点稳定性更好（返回精简正文/Markdown）
   (u: string) => `https://r.jina.ai/http://${u.replace(/^https?:\/\//, '')}`,
@@ -77,15 +80,6 @@ function makeLinksAbsolute(html: string, baseUrl: string): string {
   return doc.body?.innerHTML || ''
 }
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
 function extractMarkdownPayload(raw: string): string | null {
   const text = raw.trim()
   if (!text) return null
@@ -109,105 +103,10 @@ function extractMarkdownPayload(raw: string): string | null {
   return looksMarkdown ? content : null
 }
 
-function renderMarkdownInline(text: string, baseUrl: string): string {
-  const tokens: string[] = []
-  const pushToken = (html: string) => {
-    const key = `\u0000TOKEN_${tokens.length}\u0000`
-    tokens.push(html)
-    return key
-  }
-
-  let s = text
-  s = s.replace(/`([^`]+)`/g, (_, code: string) => pushToken(`<code>${escapeHtml(code)}</code>`))
-  s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt: string, src: string) =>
-    pushToken(
-      `<img src="${escapeHtml(toAbsoluteUrl(baseUrl, src.trim()))}" alt="${escapeHtml(alt.trim())}" />`
-    )
-  )
-  s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label: string, href: string) =>
-    pushToken(
-      `<a href="${escapeHtml(toAbsoluteUrl(baseUrl, href.trim()))}" target="_blank" rel="noopener noreferrer">${escapeHtml(
-        label.trim()
-      )}</a>`
-    )
-  )
-
-  s = escapeHtml(s)
-  s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-  s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>')
-
-  for (let i = 0; i < tokens.length; i += 1) {
-    s = s.replace(new RegExp(`\\u0000TOKEN_${i}\\u0000`, 'g'), tokens[i])
-  }
-  return s
-}
-
 function markdownToHtml(md: string, baseUrl: string): string {
-  const lines = md.replace(/\r\n?/g, '\n').split('\n')
-  const out: string[] = []
-  let inUl = false
-  let inOl = false
-
-  const closeLists = () => {
-    if (inUl) {
-      out.push('</ul>')
-      inUl = false
-    }
-    if (inOl) {
-      out.push('</ol>')
-      inOl = false
-    }
-  }
-
-  for (const rawLine of lines) {
-    const line = rawLine.trim()
-    if (!line) {
-      closeLists()
-      continue
-    }
-
-    const heading = line.match(/^(#{1,6})\s+(.+)$/)
-    if (heading) {
-      closeLists()
-      const level = heading[1].length
-      out.push(`<h${level}>${renderMarkdownInline(heading[2], baseUrl)}</h${level}>`)
-      continue
-    }
-
-    const ul = line.match(/^[-*+]\s+(.+)$/)
-    if (ul) {
-      if (inOl) {
-        out.push('</ol>')
-        inOl = false
-      }
-      if (!inUl) {
-        out.push('<ul>')
-        inUl = true
-      }
-      out.push(`<li>${renderMarkdownInline(ul[1], baseUrl)}</li>`)
-      continue
-    }
-
-    const ol = line.match(/^\d+\.\s+(.+)$/)
-    if (ol) {
-      if (inUl) {
-        out.push('</ul>')
-        inUl = false
-      }
-      if (!inOl) {
-        out.push('<ol>')
-        inOl = true
-      }
-      out.push(`<li>${renderMarkdownInline(ol[1], baseUrl)}</li>`)
-      continue
-    }
-
-    closeLists()
-    out.push(`<p>${renderMarkdownInline(line, baseUrl)}</p>`)
-  }
-
-  closeLists()
-  return out.join('\n')
+  const rendered = marked.parse(md) as string
+  const withAbsoluteLinks = makeLinksAbsolute(rendered, baseUrl)
+  return DOMPurify.sanitize(withAbsoluteLinks, { USE_PROFILES: { html: true } })
 }
 
 /** 移除正文中的首个 h1，避免与 RSS 标题重复 */

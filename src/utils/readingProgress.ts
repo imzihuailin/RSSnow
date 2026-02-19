@@ -3,7 +3,7 @@ const READING_PROGRESS_KEY = 'rssnow_reading_progress'
 export interface ProgressEntry {
   progress: number // 0-100 百分比
   updatedAt: number
-  isRead?: boolean // 一旦置为 true 永不回退
+  isRead?: boolean
 }
 
 function getArticleKey(feedId: string, articleId: string): string {
@@ -31,8 +31,7 @@ export function setReadingProgress(
     const cache: Record<string, ProgressEntry> = data ? JSON.parse(data) : {}
     const key = getArticleKey(feedId, articleId)
     const existing = cache[key]
-    // isRead 一旦置为 true 永远保留，不随进度更新而清除
-    cache[key] = { progress, updatedAt, ...(existing?.isRead ? { isRead: true } : {}) }
+    cache[key] = { progress, updatedAt, ...(existing?.isRead != null ? { isRead: existing.isRead } : {}) }
     // 限制条目数量，保留最近 500 篇
     const keys = Object.keys(cache)
     if (keys.length > 500) {
@@ -45,18 +44,23 @@ export function setReadingProgress(
   }
 }
 
-/** 将文章标记为已读（幂等：已读后再次调用无副作用） */
-export function markArticleRead(feedId: string, articleId: string): void {
+/** 切换已读状态，返回切换后的 isRead 值 */
+export function toggleArticleRead(feedId: string, articleId: string): boolean {
   try {
     const data = localStorage.getItem(READING_PROGRESS_KEY)
     const cache: Record<string, ProgressEntry> = data ? JSON.parse(data) : {}
     const key = getArticleKey(feedId, articleId)
     const existing = cache[key]
-    if (existing?.isRead) return
-    cache[key] = { progress: 100, updatedAt: existing?.updatedAt ?? Date.now(), isRead: true }
+    const newIsRead = !existing?.isRead
+    cache[key] = {
+      progress: existing?.progress ?? 0,
+      updatedAt: existing?.updatedAt ?? Date.now(),
+      isRead: newIsRead,
+    }
     localStorage.setItem(READING_PROGRESS_KEY, JSON.stringify(cache))
+    return newIsRead
   } catch {
-    // ignore
+    return false
   }
 }
 

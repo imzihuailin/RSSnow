@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getArticlesCache, getFetchedContent, setFetchedContent } from '../utils/storage'
-import { getReadingProgress, setReadingProgress, markArticleRead } from '../utils/readingProgress'
+import { getReadingProgress, setReadingProgress, isArticleRead, toggleArticleRead } from '../utils/readingProgress'
 import { getReadingPreferences, saveReadingPreferences } from '../utils/preferences'
 import { fetchArticleContent } from '../hooks/useFetchArticle'
 import { ReaderToolbar, FONT_OPTIONS, BG_OPTIONS } from '../components/ReaderToolbar'
@@ -10,6 +10,11 @@ const DEBOUNCE_MS = 300
 const DOUBLE_CLICK_MS = 350
 const SETTLE_MS = 500
 const JUMP_THRESHOLD_SCREENS = 2
+
+function isLikelyHtml(content?: string | null): boolean {
+  if (!content) return false
+  return /<[a-z][\s\S]*>/i.test(content.trim())
+}
 
 function getEffectiveProgress(rawPct: number, jumpOriginPct: number | null): number {
   if (jumpOriginPct === null) return rawPct
@@ -38,7 +43,6 @@ export function ReaderPage() {
   const containerRef = useRef<HTMLDivElement>(null)
   const saveProgressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasRestoredRef = useRef(false)
-  const hasMarkedReadRef = useRef(false)
   const lastContentClickRef = useRef(0)
   const contentClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const feedIdRef = useRef(feedId)
@@ -51,7 +55,6 @@ export function ReaderPage() {
   const prefs = getReadingPreferences()
   const [toolbarVisible, setToolbarVisible] = useState(false)
   const [progress, setProgress] = useState(0)
-  const [effectiveProgress, setEffectiveProgress] = useState(0)
   const [jumpOriginPct, setJumpOriginPct] = useState<number | null>(null)
   const [fontId, setFontId] = useState(prefs.fontId)
   const [fontSize, setFontSize] = useState(prefs.fontSize)
@@ -61,11 +64,15 @@ export function ReaderPage() {
   const [brightness, setBrightness] = useState(prefs.brightness)
 
   const decodedId = articleId ? decodeURIComponent(articleId) : ''
-  feedIdRef.current = feedId ?? ''
-  decodedIdRef.current = decodedId
-  jumpOriginPctRef.current = jumpOriginPct
   const cached = feedId ? getArticlesCache(feedId) : null
   const article = cached?.articles?.find((a) => a.id === decodedId)
+  const hasRenderableArticleContent = isLikelyHtml(article?.content)
+
+  useEffect(() => {
+    feedIdRef.current = feedId ?? ''
+    decodedIdRef.current = decodedId
+    jumpOriginPctRef.current = jumpOriginPct
+  }, [feedId, decodedId, jumpOriginPct])
 
   useEffect(() => {
     return () => {
@@ -97,29 +104,22 @@ export function ReaderPage() {
     }
   }, [])
 
-  // 切换文章时重置恢复/已读标记
   useEffect(() => {
     hasRestoredRef.current = false
-    hasMarkedReadRef.current = false
   }, [feedId, decodedId])
 
-  // 真实进度首次到达 100% 时标记为已读（此后不会因再次未读完而撤销）
-  useEffect(() => {
-    if (effectiveProgress >= 100 && !hasMarkedReadRef.current && feedId && decodedId) {
-      hasMarkedReadRef.current = true
-      markArticleRead(feedId, decodedId)
-    }
-  }, [effectiveProgress, feedId, decodedId])
-  const [fetchedContent, setFetchedContentState] = useState<string | null>(null)
+  const [, setReadVersion] = useState(0)
+  const isRead = feedId && decodedId ? isArticleRead(feedId, decodedId) : false
+
+  const handleToggleRead = () => {
+    if (!feedId || !decodedId) return
+    toggleArticleRead(feedId, decodedId)
+    setReadVersion((v) => v + 1)
+  }
+
   const [fetching, setFetching] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!article) return
-    if (article.content) return
-    const cached = getFetchedContent(article.link)
-    if (cached) setFetchedContentState(cached)
-  }, [article])
+  const fetchedContent = article ? getFetchedContent(article.link) : null
 
   const font = FONT_OPTIONS.find((f) => f.id === fontId) ?? FONT_OPTIONS[0]
   const bg = BG_OPTIONS.find((b) => b.id === bgId) ?? BG_OPTIONS[0]
@@ -131,13 +131,11 @@ export function ReaderPage() {
     const maxScroll = scrollHeight - clientHeight
     if (maxScroll <= 0) {
       setProgress(100)
-      setEffectiveProgress(100)
       return
     }
     const rawPct = (scrollTop / maxScroll) * 100
     setProgress(rawPct)
     const effectivePct = getEffectiveProgress(rawPct, jumpOriginPctRef.current)
-    setEffectiveProgress(effectivePct)
     // 防抖保存进度
     if (saveProgressTimerRef.current) clearTimeout(saveProgressTimerRef.current)
     saveProgressTimerRef.current = setTimeout(() => {
@@ -164,11 +162,9 @@ export function ReaderPage() {
       if (delta > curCH * JUMP_THRESHOLD_SCREENS) {
         const originPct = settledPctRef.current
         setJumpOriginPct(originPct)
-        setEffectiveProgress(originPct)
         if (feedId && decodedId) setReadingProgress(feedId, decodedId, originPct)
       } else if (jumpOriginPctRef.current !== null && Math.abs(curPct - jumpOriginPctRef.current) < 3) {
         setJumpOriginPct(null)
-        setEffectiveProgress(curPct)
         if (feedId && decodedId) setReadingProgress(feedId, decodedId, curPct)
       }
       settledPctRef.current = curPct
@@ -178,9 +174,10 @@ export function ReaderPage() {
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
-    updateProgress()
+    const rafId = requestAnimationFrame(() => updateProgress())
     el.addEventListener('scroll', updateProgress, { passive: true })
     return () => {
+      cancelAnimationFrame(rafId)
       el.removeEventListener('scroll', updateProgress)
       if (saveProgressTimerRef.current) {
         clearTimeout(saveProgressTimerRef.current)
@@ -206,7 +203,7 @@ export function ReaderPage() {
   }, [fontId, fontSize, lineHeight, pagePadding, bgId, brightness])
 
   // 进入页面时恢复阅读进度（上次读到哪里，下次接着读）
-  const contentReady = article && (article.content || fetchedContent || fetchError)
+  const contentReady = article && (hasRenderableArticleContent || fetchedContent || fetchError)
   useEffect(() => {
     if (!contentReady || !feedId || !decodedId || hasRestoredRef.current) return
     const saved = getReadingProgress(feedId, decodedId)
@@ -225,7 +222,6 @@ export function ReaderPage() {
         el.scrollTop = (pct / 100) * maxScroll
         settledPctRef.current = pct
         setProgress(pct)
-        setEffectiveProgress(pct)
         hasRestoredRef.current = true
         return
       }
@@ -241,22 +237,32 @@ export function ReaderPage() {
     }
   }, [contentReady, feedId, decodedId])
 
-  const needsFetch = article && !article.content && !fetchedContent && !fetching && !fetchError
+  const needsFetch = article && !hasRenderableArticleContent && !fetchedContent && !fetching && !fetchError
   useEffect(() => {
     if (!needsFetch || !article?.link) return
-    setFetching(true)
-    setFetchError(null)
-    fetchArticleContent(article.link)
-      .then((content) => {
-        setFetchedContentState(content)
-        setFetchedContent(article.link, content)
-      })
-      .catch((err) => {
-        setFetchError(err instanceof Error ? err.message : '抓取失败')
-      })
-      .finally(() => {
-        setFetching(false)
-      })
+    const articleLink = article.link
+    let cancelled = false
+    queueMicrotask(() => {
+      if (cancelled) return
+      setFetching(true)
+      setFetchError(null)
+      fetchArticleContent(articleLink)
+        .then((content) => {
+          if (cancelled) return
+          setFetchedContent(articleLink, content)
+        })
+        .catch((err) => {
+          if (cancelled) return
+          setFetchError(err instanceof Error ? err.message : '抓取失败')
+        })
+        .finally(() => {
+          if (cancelled) return
+          setFetching(false)
+        })
+    })
+    return () => {
+      cancelled = true
+    }
   }, [needsFetch, article?.link])
 
   const handleProgressChange = (value: number) => {
@@ -268,7 +274,6 @@ export function ReaderPage() {
     el.scrollTop = (value / 100) * maxScroll
     setProgress(value)
     const effectiveValue = getEffectiveProgress(value, jumpOriginPctRef.current)
-    setEffectiveProgress(effectiveValue)
     if (feedId && decodedId) setReadingProgress(feedId, decodedId, effectiveValue)
   }
 
@@ -370,7 +375,7 @@ export function ReaderPage() {
           </h1>
           {fetching ? (
             <p className="opacity-80 py-8">抓取原文中…</p>
-          ) : (article.content || fetchedContent) ? (
+          ) : (hasRenderableArticleContent || fetchedContent) ? (
               <article
                 className={`reader-content [&_img]:max-w-full [&_a]:hover:underline [&_p]:my-4 [&_h1]:text-2xl [&_h2]:text-xl [&_h3]:text-lg [&_ul]:my-2 [&_ol]:my-2 ${
                   bgId === 'dark' ? '[&_a]:text-sky-300' : '[&_a]:text-blue-600'
@@ -378,7 +383,7 @@ export function ReaderPage() {
                 style={{ fontFamily: font.fontFamily, fontSize: `${fontSize}px`, lineHeight }}
                 dangerouslySetInnerHTML={{
                   __html:
-                    article.content ||
+                    (hasRenderableArticleContent ? article.content : '') ||
                     fetchedContent ||
                     '暂无正文',
                 }}
@@ -398,16 +403,26 @@ export function ReaderPage() {
           ) : (
             <p className="opacity-80">暂无正文</p>
           )}
-          <p className="mt-8 pt-4 border-t opacity-20" style={{ borderColor: bg.text }}>
+          <div className="mt-8 pt-4 border-t flex items-center justify-between" style={{ borderColor: bg.text }}>
             <a
               href={article.link}
               target="_blank"
               rel="noopener noreferrer"
-              className={bgId === 'dark' ? 'text-sky-300 hover:underline' : 'text-blue-600 hover:underline'}
+              className={`opacity-35 ${bgId === 'dark' ? 'text-sky-300 hover:underline' : 'text-blue-600 hover:underline'}`}
             >
               在新窗口打开原文 →
             </a>
-          </p>
+            <button
+              onClick={(e) => { e.stopPropagation(); handleToggleRead() }}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0 ${
+                isRead
+                  ? 'bg-gray-300 text-gray-500'
+                  : 'bg-emerald-600 text-white hover:bg-emerald-700'
+              }`}
+            >
+              {isRead ? '✅ 已标记' : '标记已读'}
+            </button>
+          </div>
         </div>
       </div>
 
