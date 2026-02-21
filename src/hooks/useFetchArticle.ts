@@ -3,13 +3,14 @@ import { marked } from 'marked'
 
 const CORS_PROXIES = [
   // r.jina.ai 对部分站点稳定性更好（返回精简正文/Markdown）
-  (u: string) => `https://r.jina.ai/http://${u.replace(/^https?:\/\//, '')}`,
-  (u: string) => `https://api.cors.lol/?url=${encodeURIComponent(u)}`,
-  (u: string) => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
-  (u: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+  { name: 'r.jina.ai', toProxyUrl: (u: string) => `https://r.jina.ai/http://${u.replace(/^https?:\/\//, '')}` },
+  { name: 'api.cors.lol', toProxyUrl: (u: string) => `https://api.cors.lol/?url=${encodeURIComponent(u)}` },
+  { name: 'corsproxy.io', toProxyUrl: (u: string) => `https://corsproxy.io/?url=${encodeURIComponent(u)}` },
+  { name: 'allorigins', toProxyUrl: (u: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}` },
 ]
 
 const REQUEST_TIMEOUT_MS = 8000
+const OVERALL_TIMEOUT_MS = 12000
 
 const CONTENT_SELECTORS = [
   'article',
@@ -203,12 +204,41 @@ function extractContent(html: string, url: string): string {
   return ''
 }
 
-export async function fetchArticleContent(url: string): Promise<string> {
-  const runSingleProxy = async (toProxyUrl: (u: string) => string): Promise<string> => {
+function errorToMessage(err: unknown): string {
+  if (err instanceof Error && err.message) return err.message
+  return String(err)
+}
+
+export async function fetchArticleContent(url: string, options?: { signal?: AbortSignal }): Promise<string> {
+  const overallController = new AbortController()
+  const externalSignal = options?.signal
+  let timedOut = false
+  let externallyAborted = false
+  const startedAt = Date.now()
+
+  const onExternalAbort = () => {
+    externallyAborted = true
+    overallController.abort(externalSignal?.reason)
+  }
+
+  if (externalSignal) {
+    if (externalSignal.aborted) onExternalAbort()
+    else externalSignal.addEventListener('abort', onExternalAbort, { once: true })
+  }
+
+  const overallTimeoutId = setTimeout(() => {
+    timedOut = true
+    overallController.abort()
+  }, OVERALL_TIMEOUT_MS)
+
+  const runSingleProxy = async (proxy: { name: string; toProxyUrl: (u: string) => string }): Promise<string> => {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+    const proxyStartedAt = Date.now()
+    const onOverallAbort = () => controller.abort()
+    overallController.signal.addEventListener('abort', onOverallAbort, { once: true })
     try {
-      const proxiedUrl = toProxyUrl(url)
+      const proxiedUrl = proxy.toProxyUrl(url)
       const res = await fetch(proxiedUrl, { signal: controller.signal })
       if (!res.ok) throw new Error(`请求失败 (${res.status})`)
       let html = await res.text()
@@ -227,28 +257,58 @@ export async function fetchArticleContent(url: string): Promise<string> {
 
       const content = extractContent(html, url)
       if (content) {
+        console.info('[fetchArticleContent] proxy_success', {
+          proxy: proxy.name,
+          durationMs: Date.now() - proxyStartedAt,
+        })
         return stripAllImages(content)
       }
       throw new Error('未提取到正文')
     } catch (err) {
+      const reason = errorToMessage(err)
+      console.warn('[fetchArticleContent] proxy_failed', {
+        proxy: proxy.name,
+        durationMs: Date.now() - proxyStartedAt,
+        reason,
+      })
       if (err instanceof DOMException && err.name === 'AbortError') {
+        if (externallyAborted) throw new Error('请求已取消')
+        if (timedOut) throw new Error(`抓取超时（>${OVERALL_TIMEOUT_MS}ms）`)
         throw new Error(`请求超时（>${REQUEST_TIMEOUT_MS}ms）`)
       }
       throw err instanceof Error ? err : new Error(String(err))
     } finally {
       clearTimeout(timeoutId)
+      overallController.signal.removeEventListener('abort', onOverallAbort)
     }
   }
 
   try {
     // 并行请求多个代理，谁先拿到有效正文就直接返回
-    return await Promise.any(CORS_PROXIES.map((toProxyUrl) => runSingleProxy(toProxyUrl)))
+    const content = await Promise.any(CORS_PROXIES.map((proxy) => runSingleProxy(proxy)))
+    console.info('[fetchArticleContent] fetch_success', {
+      durationMs: Date.now() - startedAt,
+    })
+    return content
   } catch (err) {
+    if (externallyAborted) throw new Error('请求已取消')
+    if (timedOut) throw new Error('抓取超时，请点击下方在新窗口打开原文')
     if (err instanceof AggregateError) {
       const first = err.errors?.[0]
       const msg = first instanceof Error ? first.message : '无法抓取原文'
+      console.warn('[fetchArticleContent] fetch_failed', {
+        durationMs: Date.now() - startedAt,
+        reason: msg,
+      })
       throw new Error(`${msg}。可在新窗口打开原文查看。`)
     }
+    console.warn('[fetchArticleContent] fetch_failed', {
+      durationMs: Date.now() - startedAt,
+      reason: errorToMessage(err),
+    })
     throw new Error('无法抓取原文，请稍后重试或在新窗口打开')
+  } finally {
+    clearTimeout(overallTimeoutId)
+    if (externalSignal) externalSignal.removeEventListener('abort', onExternalAbort)
   }
 }

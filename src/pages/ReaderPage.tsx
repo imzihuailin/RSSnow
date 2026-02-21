@@ -51,6 +51,7 @@ export function ReaderPage() {
   const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const ignoreJumpRef = useRef(false)
   const jumpOriginPctRef = useRef<number | null>(null)
+  const fetchAbortRef = useRef<AbortController | null>(null)
 
   const prefs = getReadingPreferences()
   const [toolbarVisible, setToolbarVisible] = useState(false)
@@ -237,31 +238,39 @@ export function ReaderPage() {
     }
   }, [contentReady, feedId, decodedId])
 
-  const needsFetch = article && !hasRenderableArticleContent && !fetchedContent && !fetching && !fetchError
+  const needsFetch = !!(article && !hasRenderableArticleContent && !fetchedContent && !fetchError)
   useEffect(() => {
     if (!needsFetch || !article?.link) return
     const articleLink = article.link
     let cancelled = false
+    const controller = new AbortController()
+    fetchAbortRef.current?.abort()
+    fetchAbortRef.current = controller
     queueMicrotask(() => {
       if (cancelled) return
       setFetching(true)
       setFetchError(null)
-      fetchArticleContent(articleLink)
+      fetchArticleContent(articleLink, { signal: controller.signal })
         .then((content) => {
           if (cancelled) return
           setFetchedContent(articleLink, content)
         })
         .catch((err) => {
           if (cancelled) return
-          setFetchError(err instanceof Error ? err.message : '抓取失败')
+          const msg = err instanceof Error ? err.message : '抓取失败'
+          if (msg === '请求已取消') return
+          setFetchError('抓取失败，请点击下方在新窗口打开原文')
         })
         .finally(() => {
+          if (fetchAbortRef.current === controller) fetchAbortRef.current = null
           if (cancelled) return
           setFetching(false)
         })
     })
     return () => {
       cancelled = true
+      controller.abort()
+      if (fetchAbortRef.current === controller) fetchAbortRef.current = null
     }
   }, [needsFetch, article?.link])
 
@@ -391,14 +400,6 @@ export function ReaderPage() {
           ) : fetchError ? (
             <div className="space-y-4">
               <p className="opacity-80">{fetchError}</p>
-              <a
-                href={article.link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={bgId === 'dark' ? 'text-sky-300 hover:underline' : 'text-blue-600 hover:underline'}
-              >
-                在新窗口打开原文 →
-              </a>
             </div>
           ) : (
             <p className="opacity-80">暂无正文</p>
