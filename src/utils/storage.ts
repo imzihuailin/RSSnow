@@ -115,3 +115,15 @@ export function setFetchedContent(articleLink: string, content: string): void {
     // ignore
   }
 }
+
+export function deleteFetchedContent(articleLink: string): void {
+  try {
+    const raw = localStorage.getItem(FETCHED_CONTENT_KEY)
+    const cache: Record<string, string> = raw ? JSON.parse(raw) : {}
+    if (!(articleLink in cache)) return
+    delete cache[articleLink]
+    localStorage.setItem(FETCHED_CONTENT_KEY, JSON.stringify(cache))
+  } catch {
+    // ignore
+  }
+}

@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { getArticlesCache, getFetchedContent, setFetchedContent } from '../utils/storage'
+import { getArticlesCache, getFetchedContent, setFetchedContent, deleteFetchedContent } from '../utils/storage'
 import { getReadingProgress, setReadingProgress, isArticleRead, toggleArticleRead } from '../utils/readingProgress'
 import { getReadingPreferences, saveReadingPreferences } from '../utils/preferences'
 import { fetchArticleContent } from '../hooks/useFetchArticle'
@@ -10,10 +10,31 @@ const DEBOUNCE_MS = 300
 const DOUBLE_CLICK_MS = 350
 const SETTLE_MS = 500
 const JUMP_THRESHOLD_SCREENS = 2
+const SHORT_CONTENT_TEXT_LEN = 120
+const DOUBLE_BR_RE = /<br\s*\/?>\s*(?:&nbsp;|\s)*<br\s*\/?>/i
+const BLOCK_BOUNDARY_RE = /<\/(p|div|section|article)>\s*<(p|div|section|article)\b/i
+const HR_RE = /<hr\b/i
 
 function isLikelyHtml(content?: string | null): boolean {
   if (!content) return false
   return /<[a-z][\s\S]*>/i.test(content.trim())
+}
+
+function getVisibleTextLength(content?: string | null): number {
+  if (!content) return 0
+  return content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().length
+}
+
+function hasVisibleBreakSignal(content?: string | null): boolean {
+  if (!content) return false
+  return DOUBLE_BR_RE.test(content) || BLOCK_BOUNDARY_RE.test(content) || HR_RE.test(content)
+}
+
+function isStructuredHtml(content?: string | null): boolean {
+  if (!isLikelyHtml(content)) return false
+  const textLen = getVisibleTextLength(content)
+  if (textLen > 0 && textLen < SHORT_CONTENT_TEXT_LEN) return true
+  return hasVisibleBreakSignal(content)
 }
 
 function getEffectiveProgress(rawPct: number, jumpOriginPct: number | null): number {
@@ -67,13 +88,7 @@ export function ReaderPage() {
   const decodedId = articleId ? decodeURIComponent(articleId) : ''
   const cached = feedId ? getArticlesCache(feedId) : null
   const article = cached?.articles?.find((a) => a.id === decodedId)
-  const hasRenderableArticleContent = isLikelyHtml(article?.content)
-
-  useEffect(() => {
-    feedIdRef.current = feedId ?? ''
-    decodedIdRef.current = decodedId
-    jumpOriginPctRef.current = jumpOriginPct
-  }, [feedId, decodedId, jumpOriginPct])
+  const articleContent = article?.content ?? null
 
   useEffect(() => {
     return () => {
@@ -121,9 +136,31 @@ export function ReaderPage() {
   const [fetching, setFetching] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const fetchedContent = article ? getFetchedContent(article.link) : null
+  const hasRenderableArticleContent = isStructuredHtml(articleContent)
+  const hasRenderableFetchedContent = isStructuredHtml(fetchedContent)
+  const usableFetchedContent = hasRenderableFetchedContent ? fetchedContent : null
 
   const font = FONT_OPTIONS.find((f) => f.id === fontId) ?? FONT_OPTIONS[0]
   const bg = BG_OPTIONS.find((b) => b.id === bgId) ?? BG_OPTIONS[0]
+
+  useEffect(() => {
+    feedIdRef.current = feedId ?? ''
+    decodedIdRef.current = decodedId
+    jumpOriginPctRef.current = jumpOriginPct
+  }, [feedId, decodedId, jumpOriginPct])
+
+  useEffect(() => {
+    if (!article?.link || !fetchedContent) return
+    if (hasRenderableFetchedContent) return
+    deleteFetchedContent(article.link)
+    if (import.meta.env.DEV) {
+      console.info('[ReaderPage] drop_weak_fetched_cache', {
+        link: article.link,
+        hasParagraphBreak: hasVisibleBreakSignal(fetchedContent),
+        textLen: getVisibleTextLength(fetchedContent),
+      })
+    }
+  }, [article?.link, fetchedContent, hasRenderableFetchedContent])
 
   const updateProgress = useCallback(() => {
     const el = containerRef.current
@@ -204,7 +241,7 @@ export function ReaderPage() {
   }, [fontId, fontSize, lineHeight, pagePadding, bgId, brightness])
 
   // 进入页面时恢复阅读进度（上次读到哪里，下次接着读）
-  const contentReady = article && (hasRenderableArticleContent || fetchedContent || fetchError)
+  const contentReady = article && (hasRenderableArticleContent || usableFetchedContent || fetchError)
   useEffect(() => {
     if (!contentReady || !feedId || !decodedId || hasRestoredRef.current) return
     const saved = getReadingProgress(feedId, decodedId)
@@ -238,7 +275,7 @@ export function ReaderPage() {
     }
   }, [contentReady, feedId, decodedId])
 
-  const needsFetch = !!(article && !hasRenderableArticleContent && !fetchedContent && !fetchError)
+  const needsFetch = !!(article && !hasRenderableArticleContent && !usableFetchedContent && !fetchError)
   useEffect(() => {
     if (!needsFetch || !article?.link) return
     const articleLink = article.link
@@ -384,7 +421,7 @@ export function ReaderPage() {
           </h1>
           {fetching ? (
             <p className="opacity-80 py-8">抓取原文中…</p>
-          ) : (hasRenderableArticleContent || fetchedContent) ? (
+          ) : (hasRenderableArticleContent || usableFetchedContent) ? (
               <article
                 className={`reader-content [&_img]:max-w-full [&_a]:hover:underline [&_p]:my-4 [&_h1]:text-2xl [&_h2]:text-xl [&_h3]:text-lg [&_ul]:my-2 [&_ol]:my-2 ${
                   bgId === 'dark' ? '[&_a]:text-sky-300' : '[&_a]:text-blue-600'
@@ -392,8 +429,8 @@ export function ReaderPage() {
                 style={{ fontFamily: font.fontFamily, fontSize: `${fontSize}px`, lineHeight }}
                 dangerouslySetInnerHTML={{
                   __html:
-                    (hasRenderableArticleContent ? article.content : '') ||
-                    fetchedContent ||
+                    (hasRenderableArticleContent ? articleContent : '') ||
+                    usableFetchedContent ||
                     '暂无正文',
                 }}
               />
