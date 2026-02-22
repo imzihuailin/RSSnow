@@ -439,7 +439,7 @@ export function ReaderPage() {
               <p className="opacity-80">{fetchError}</p>
             </div>
           ) : (
-            <p className="opacity-80">暂无正文</p>
+            <p className="opacity-80">原文抓取失败，请退出重试，或在新窗口打开原文</p>
           )}
           <div className="mt-8 pt-4 border-t flex items-center justify-between" style={{ borderColor: bg.text }}>
             <a
