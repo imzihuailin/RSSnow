@@ -296,7 +296,7 @@ export function ReaderPage() {
           if (cancelled) return
           const msg = err instanceof Error ? err.message : '抓取失败'
           if (msg === '请求已取消') return
-          setFetchError('抓取失败，请点击下方在新窗口打开原文')
+          setFetchError('抓取失败，请刷新标签页')
         })
         .finally(() => {
           if (fetchAbortRef.current === controller) fetchAbortRef.current = null
