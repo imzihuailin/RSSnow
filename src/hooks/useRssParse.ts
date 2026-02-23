@@ -1,4 +1,5 @@
 import type { Article } from '../utils/storage'
+import { readResponseTextWithEmDashFix } from '../utils/textFix'
 
 const CORS_PROXIES = [
   (u: string) => `https://api.cors.lol/?url=${encodeURIComponent(u)}`,
@@ -182,7 +183,7 @@ export async function fetchAndParseRss(url: string): Promise<{
       const proxiedUrl = toProxyUrl(url)
       const res = await fetch(proxiedUrl)
       if (!res.ok) throw new Error(`请求失败 (${res.status})`)
-      let xml = await res.text()
+      let xml = await readResponseTextWithEmDashFix(res)
 
       if (xml.trim().startsWith('{')) {
         const json = JSON.parse(xml)
@@ -219,7 +220,7 @@ export async function fetchFeedWithArticles(url: string): Promise<{
       const proxiedUrl = toProxyUrl(url)
       const res = await fetch(proxiedUrl)
       if (!res.ok) throw new Error(`请求失败 (${res.status})`)
-      let xml = await res.text()
+      let xml = await readResponseTextWithEmDashFix(res)
 
       if (xml.trim().startsWith('{')) {
         const json = JSON.parse(xml)

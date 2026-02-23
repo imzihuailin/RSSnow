@@ -1,5 +1,6 @@
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
+import { readResponseTextWithEmDashFix } from '../utils/textFix'
 
 const CORS_PROXIES = [
   // r.jina.ai 对部分站点稳定性更好（返回精简正文/Markdown）
@@ -241,7 +242,7 @@ export async function fetchArticleContent(url: string, options?: { signal?: Abor
       const proxiedUrl = proxy.toProxyUrl(url)
       const res = await fetch(proxiedUrl, { signal: controller.signal })
       if (!res.ok) throw new Error(`请求失败 (${res.status})`)
-      let html = await res.text()
+      let html = await readResponseTextWithEmDashFix(res)
 
       if (html.trim().startsWith('{')) {
         const json = JSON.parse(html)
