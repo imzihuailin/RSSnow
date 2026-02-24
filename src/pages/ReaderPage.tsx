@@ -5,6 +5,7 @@ import { getReadingProgress, setReadingProgress, isArticleRead, toggleArticleRea
 import { getReadingPreferences, saveReadingPreferences } from '../utils/preferences'
 import { fetchArticleContent } from '../hooks/useFetchArticle'
 import { ReaderToolbar, FONT_OPTIONS, BG_OPTIONS } from '../components/ReaderToolbar'
+import { t } from '../i18n'
 
 const DEBOUNCE_MS = 300
 const DOUBLE_CLICK_MS = 350
@@ -294,9 +295,9 @@ export function ReaderPage() {
         })
         .catch((err) => {
           if (cancelled) return
-          const msg = err instanceof Error ? err.message : '抓取失败'
-          if (msg === '请求已取消') return
-          setFetchError('抓取失败，请刷新标签页')
+          const msg = err instanceof Error ? err.message : t('抓取失败', 'Fetch failed')
+          if (msg === t('请求已取消', 'Request cancelled')) return
+          setFetchError(t('抓取失败，请刷新标签页', 'Fetch failed, please refresh the page'))
         })
         .finally(() => {
           if (fetchAbortRef.current === controller) fetchAbortRef.current = null
@@ -371,12 +372,12 @@ export function ReaderPage() {
         style={{ backgroundColor: bg.bg, color: bg.text }}
       >
         <div className="text-center">
-          <p className="mb-4">文章未找到</p>
+          <p className="mb-4">{t('文章未找到', 'Article not found')}</p>
           <button
             onClick={handleBack}
             className="text-blue-600 dark:text-blue-400 hover:underline"
           >
-            返回列表
+            {t('返回列表', 'Back to list')}
           </button>
         </div>
       </div>
@@ -398,7 +399,7 @@ export function ReaderPage() {
           onClick={handleBack}
           className="px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
         >
-          ← 返回
+          {t('← 返回', '← Back')}
         </button>
       </div>
 
@@ -420,7 +421,7 @@ export function ReaderPage() {
             {article.title}
           </h1>
           {fetching ? (
-            <p className="opacity-80 py-8">抓取原文中…</p>
+            <p className="opacity-80 py-8">{t('抓取原文中…', 'Fetching article...')}</p>
           ) : (hasRenderableArticleContent || usableFetchedContent) ? (
               <article
                 className={`reader-content [&_img]:max-w-full [&_a]:hover:underline [&_p]:my-4 [&_h1]:text-2xl [&_h2]:text-xl [&_h3]:text-lg [&_ul]:my-2 [&_ol]:my-2 ${
@@ -431,7 +432,7 @@ export function ReaderPage() {
                   __html:
                     (hasRenderableArticleContent ? articleContent : '') ||
                     usableFetchedContent ||
-                    '暂无正文',
+                    t('暂无正文', 'No content'),
                 }}
               />
           ) : fetchError ? (
@@ -439,7 +440,7 @@ export function ReaderPage() {
               <p className="opacity-80">{fetchError}</p>
             </div>
           ) : (
-            <p className="opacity-80">原文抓取失败，请退出重试，或在新窗口打开原文</p>
+            <p className="opacity-80">{t('原文抓取失败，请退出重试，或在新窗口打开原文', 'Failed to fetch article. Please try again or open in a new tab.')}</p>
           )}
           <div className="mt-8 pt-4 border-t flex items-center justify-between" style={{ borderColor: bg.text }}>
             <a
@@ -448,7 +449,7 @@ export function ReaderPage() {
               rel="noopener noreferrer"
               className={`opacity-35 ${bgId === 'dark' ? 'text-sky-300 hover:underline' : 'text-blue-600 hover:underline'}`}
             >
-              在新窗口打开原文 →
+              {t('在新窗口打开原文 →', 'Open original →')}
             </a>
             <button
               onClick={(e) => { e.stopPropagation(); handleToggleRead() }}
@@ -458,7 +459,7 @@ export function ReaderPage() {
                   : 'bg-emerald-600 text-white hover:bg-emerald-700'
               }`}
             >
-              {isRead ? '✅ 已标记' : '标记已读'}
+              {isRead ? t('✅ 已标记', '✅ Read') : t('标记已读', 'Mark as read')}
             </button>
           </div>
         </div>
@@ -480,7 +481,7 @@ export function ReaderPage() {
             color: bg.text,
           }}
         >
-          ↑ 回到原进度
+          {t('↑ 回到原进度', '↑ Return to position')}
         </button>
       </div>
 

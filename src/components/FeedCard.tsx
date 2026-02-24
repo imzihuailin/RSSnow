@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { t } from '../i18n'
 
 interface FeedCardProps {
   feedId: string
@@ -20,7 +21,7 @@ export function FeedCard({ feedId, title, itemCount }: FeedCardProps) {
           </h3>
           {itemCount != null && (
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              {itemCount} 篇文章
+              {itemCount} {t('篇文章', 'articles')}
             </p>
           )}
         </div>

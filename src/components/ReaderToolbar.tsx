@@ -1,21 +1,22 @@
 import { useState } from 'react'
+import { t } from '../i18n'
 
 const FONT_OPTIONS = [
-  { id: 'serif', label: '宋体', fontFamily: '"SimSun", "Songti SC", serif' },
-  { id: 'sans', label: '黑体', fontFamily: '"SimHei", "Heiti SC", sans-serif' },
-  { id: 'kai', label: '楷体', fontFamily: '"KaiTi", "Kaiti SC", serif' },
-  { id: 'yahei', label: '微软雅黑', fontFamily: '"Microsoft YaHei", "PingFang SC", sans-serif' },
-  { id: 'georgia', label: 'Georgia', fontFamily: 'Georgia, "Times New Roman", serif' },
-  { id: 'times', label: 'Times New Roman', fontFamily: '"Times New Roman", Times, serif' },
-  { id: 'arial', label: 'Arial', fontFamily: 'Arial, Helvetica, sans-serif' },
-  { id: 'verdana', label: 'Verdana', fontFamily: 'Verdana, Geneva, sans-serif' },
+  { id: 'serif', label: '宋体', labelEn: 'Serif', fontFamily: '"SimSun", "Songti SC", serif' },
+  { id: 'sans', label: '黑体', labelEn: 'Sans', fontFamily: '"SimHei", "Heiti SC", sans-serif' },
+  { id: 'kai', label: '楷体', labelEn: 'Kai', fontFamily: '"KaiTi", "Kaiti SC", serif' },
+  { id: 'yahei', label: '微软雅黑', labelEn: 'YaHei', fontFamily: '"Microsoft YaHei", "PingFang SC", sans-serif' },
+  { id: 'georgia', label: 'Georgia', labelEn: 'Georgia', fontFamily: 'Georgia, "Times New Roman", serif' },
+  { id: 'times', label: 'Times New Roman', labelEn: 'Times New Roman', fontFamily: '"Times New Roman", Times, serif' },
+  { id: 'arial', label: 'Arial', labelEn: 'Arial', fontFamily: 'Arial, Helvetica, sans-serif' },
+  { id: 'verdana', label: 'Verdana', labelEn: 'Verdana', fontFamily: 'Verdana, Geneva, sans-serif' },
 ]
 
 const BG_OPTIONS = [
-  { id: 'white', label: '白色', bg: '#ffffff', text: '#1e293b' },
-  { id: 'dark', label: '深色', bg: '#000000', text: '#e8e8e8' },
-  { id: 'yellow', label: '黄色', bg: '#f5ebd0', text: '#5c4033' },
-  { id: 'green', label: '绿色', bg: '#ecfccb', text: '#14532d' },
+  { id: 'white', label: '白色', labelEn: 'White', bg: '#ffffff', text: '#1e293b' },
+  { id: 'dark', label: '深色', labelEn: 'Dark', bg: '#000000', text: '#e8e8e8' },
+  { id: 'yellow', label: '黄色', labelEn: 'Yellow', bg: '#f5ebd0', text: '#5c4033' },
+  { id: 'green', label: '绿色', labelEn: 'Green', bg: '#ecfccb', text: '#14532d' },
 ]
 
 type ExpandKey = 'progress' | 'font' | 'bg' | 'brightness' | null
@@ -93,7 +94,7 @@ export function ReaderToolbar({
               className={`flex flex-col items-center gap-1.5 p-2.5 rounded-lg transition-colors min-w-[3rem] ${
                 expanded === 'progress' ? activeClass : hoverClass
               }`}
-              title="进度"
+              title={t('进度', 'Progress')}
             >
               <div className="h-8 flex items-center justify-center shrink-0">
                 <div
@@ -106,7 +107,7 @@ export function ReaderToolbar({
                   />
                 </div>
               </div>
-              <span className="text-[10px] leading-none">进度</span>
+              <span className="text-[10px] leading-none">{t('进度', 'Progress')}</span>
             </button>
 
             {/* 字体 - A */}
@@ -115,12 +116,12 @@ export function ReaderToolbar({
               className={`flex flex-col items-center gap-1.5 p-2.5 rounded-lg transition-colors min-w-[3rem] ${
                 expanded === 'font' ? activeClass : hoverClass
               }`}
-              title="字体"
+              title={t('字体', 'Font')}
             >
               <div className="h-8 flex items-center justify-center shrink-0">
                 <span className="text-2xl font-serif font-bold leading-none">A</span>
               </div>
-              <span className="text-[10px] leading-none">字体</span>
+              <span className="text-[10px] leading-none">{t('字体', 'Font')}</span>
             </button>
 
             {/* 背景 - B */}
@@ -129,12 +130,12 @@ export function ReaderToolbar({
               className={`flex flex-col items-center gap-1.5 p-2.5 rounded-lg transition-colors min-w-[3rem] ${
                 expanded === 'bg' ? activeClass : hoverClass
               }`}
-              title="背景"
+              title={t('背景', 'Background')}
             >
               <div className="h-8 flex items-center justify-center shrink-0">
                 <span className="text-2xl font-bold leading-none">B</span>
               </div>
-              <span className="text-[10px] leading-none">背景</span>
+              <span className="text-[10px] leading-none">{t('背景', 'Background')}</span>
             </button>
 
             {/* 亮度 - 小太阳 */}
@@ -143,7 +144,7 @@ export function ReaderToolbar({
               className={`flex flex-col items-center gap-1.5 p-2.5 rounded-lg transition-colors min-w-[3rem] ${
                 expanded === 'brightness' ? activeClass : hoverClass
               }`}
-              title="亮度"
+              title={t('亮度', 'Brightness')}
             >
               <div className="h-8 flex items-center justify-center shrink-0">
                 <svg className="w-7 h-7 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -151,7 +152,7 @@ export function ReaderToolbar({
                   <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
                 </svg>
               </div>
-              <span className="text-[10px] leading-none">亮度</span>
+              <span className="text-[10px] leading-none">{t('亮度', 'Brightness')}</span>
             </button>
           </div>
 
@@ -160,7 +161,7 @@ export function ReaderToolbar({
           <div className={`mt-3 pt-3 border-t ${borderColor}`}>
             {expanded === 'progress' && (
               <div className="flex items-center gap-3">
-                <span className="text-xs opacity-75 shrink-0 w-10">进度</span>
+                <span className="text-xs opacity-75 shrink-0 w-10">{t('进度', 'Progress')}</span>
                 <input
                   type="range"
                   min="0"
@@ -177,7 +178,7 @@ export function ReaderToolbar({
             {expanded === 'font' && (
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
-                  <span className="text-xs opacity-75 shrink-0 w-10">字号</span>
+                  <span className="text-xs opacity-75 shrink-0 w-10">{t('字号', 'Size')}</span>
                   <input
                     type="range"
                     min="14"
@@ -190,7 +191,7 @@ export function ReaderToolbar({
                   <span className="text-xs opacity-75 shrink-0 w-10">{fontSize}px</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-xs opacity-75 shrink-0 w-10">行距</span>
+                  <span className="text-xs opacity-75 shrink-0 w-10">{t('行距', 'Spacing')}</span>
                   <input
                     type="range"
                     min="1.2"
@@ -203,7 +204,7 @@ export function ReaderToolbar({
                   <span className="text-xs opacity-75 shrink-0 w-10">{lineHeight.toFixed(1)}</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-xs opacity-75 shrink-0 w-10">边距</span>
+                  <span className="text-xs opacity-75 shrink-0 w-10">{t('边距', 'Margin')}</span>
                   <input
                     type="range"
                     min="0"
@@ -216,7 +217,7 @@ export function ReaderToolbar({
                   <span className="text-xs opacity-75 shrink-0 w-10">{pagePadding}%</span>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs opacity-75 shrink-0">字体</span>
+                  <span className="text-xs opacity-75 shrink-0">{t('字体', 'Font')}</span>
                   {FONT_OPTIONS.map((f) => (
                     <button
                       key={f.id}
@@ -227,7 +228,7 @@ export function ReaderToolbar({
                           : isDark ? 'bg-white/20 text-current hover:bg-white/30' : 'bg-black/10 text-current hover:bg-black/15'
                       }`}
                     >
-                      {f.label}
+                      {t(f.label, f.labelEn)}
                     </button>
                   ))}
                 </div>
@@ -236,7 +237,7 @@ export function ReaderToolbar({
 
             {expanded === 'bg' && (
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs opacity-75 shrink-0">背景</span>
+                <span className="text-xs opacity-75 shrink-0">{t('背景', 'Theme')}</span>
                 {BG_OPTIONS.map((b) => (
                   <button
                     key={b.id}
@@ -245,7 +246,7 @@ export function ReaderToolbar({
                       bgId === b.id ? 'border-blue-500 scale-110' : isDark ? 'border-white/30' : 'border-black/20'
                     }`}
                     style={{ backgroundColor: b.bg }}
-                    title={b.label}
+                    title={t(b.label, b.labelEn)}
                   />
                 ))}
               </div>
@@ -253,7 +254,7 @@ export function ReaderToolbar({
 
             {expanded === 'brightness' && (
               <div className="flex items-center gap-3">
-                <span className="text-xs opacity-75 shrink-0 w-10">亮度</span>
+                <span className="text-xs opacity-75 shrink-0 w-10">{t('亮度', 'Brightness')}</span>
                 <input
                   type="range"
                   min="0.5"

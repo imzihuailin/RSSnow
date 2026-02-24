@@ -1,6 +1,7 @@
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 import { readResponseTextWithEmDashFix } from '../utils/textFix'
+import { t } from '../i18n'
 
 const CORS_PROXIES = [
   // r.jina.ai 对部分站点稳定性更好（返回精简正文/Markdown）
@@ -241,7 +242,7 @@ export async function fetchArticleContent(url: string, options?: { signal?: Abor
     try {
       const proxiedUrl = proxy.toProxyUrl(url)
       const res = await fetch(proxiedUrl, { signal: controller.signal })
-      if (!res.ok) throw new Error(`请求失败 (${res.status})`)
+      if (!res.ok) throw new Error(t(`请求失败 (${res.status})`, `Request failed (${res.status})`))
       let html = await readResponseTextWithEmDashFix(res)
 
       if (html.trim().startsWith('{')) {
@@ -264,7 +265,7 @@ export async function fetchArticleContent(url: string, options?: { signal?: Abor
         })
         return stripAllImages(content)
       }
-      throw new Error('未提取到正文')
+      throw new Error(t('未提取到正文', 'No content extracted'))
     } catch (err) {
       const reason = errorToMessage(err)
       console.warn('[fetchArticleContent] proxy_failed', {
@@ -273,9 +274,9 @@ export async function fetchArticleContent(url: string, options?: { signal?: Abor
         reason,
       })
       if (err instanceof DOMException && err.name === 'AbortError') {
-        if (externallyAborted) throw new Error('请求已取消')
-        if (timedOut) throw new Error(`抓取超时（>${OVERALL_TIMEOUT_MS}ms）`)
-        throw new Error(`请求超时（>${REQUEST_TIMEOUT_MS}ms）`)
+        if (externallyAborted) throw new Error(t('请求已取消', 'Request cancelled'))
+        if (timedOut) throw new Error(t(`抓取超时（>${OVERALL_TIMEOUT_MS}ms）`, `Fetch timeout (>${OVERALL_TIMEOUT_MS}ms)`))
+        throw new Error(t(`请求超时（>${REQUEST_TIMEOUT_MS}ms）`, `Request timeout (>${REQUEST_TIMEOUT_MS}ms)`))
       }
       throw err instanceof Error ? err : new Error(String(err))
     } finally {
@@ -292,22 +293,22 @@ export async function fetchArticleContent(url: string, options?: { signal?: Abor
     })
     return content
   } catch (err) {
-    if (externallyAborted) throw new Error('请求已取消')
-    if (timedOut) throw new Error('抓取超时，请点击下方在新窗口打开原文')
+    if (externallyAborted) throw new Error(t('请求已取消', 'Request cancelled'))
+    if (timedOut) throw new Error(t('抓取超时，请点击下方在新窗口打开原文', 'Fetch timeout. Please open the original article in a new tab.'))
     if (err instanceof AggregateError) {
       const first = err.errors?.[0]
-      const msg = first instanceof Error ? first.message : '无法抓取原文'
+      const msg = first instanceof Error ? first.message : t('无法抓取原文', 'Unable to fetch article')
       console.warn('[fetchArticleContent] fetch_failed', {
         durationMs: Date.now() - startedAt,
         reason: msg,
       })
-      throw new Error(`${msg}。可在新窗口打开原文查看。`)
+      throw new Error(t(`${msg}。可在新窗口打开原文查看。`, `${msg}. You can open the original in a new tab.`))
     }
     console.warn('[fetchArticleContent] fetch_failed', {
       durationMs: Date.now() - startedAt,
       reason: errorToMessage(err),
     })
-    throw new Error('无法抓取原文，请稍后重试或在新窗口打开')
+    throw new Error(t('无法抓取原文，请稍后重试或在新窗口打开', 'Unable to fetch article. Please try again later or open in a new tab.'))
   } finally {
     clearTimeout(overallTimeoutId)
     if (externalSignal) externalSignal.removeEventListener('abort', onExternalAbort)

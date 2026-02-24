@@ -9,12 +9,13 @@ import {
 import { fetchFeedWithArticles } from '../hooks/useRssParse'
 import type { Article } from '../utils/storage'
 import { getReadArticleIds } from '../utils/readingProgress'
+import { t, getLang } from '../i18n'
 
 function formatDate(pubDate: string): string {
   if (!pubDate) return ''
   const d = new Date(pubDate)
   if (isNaN(d.getTime())) return pubDate
-  return d.toLocaleDateString('zh-CN', {
+  return d.toLocaleDateString(getLang() === 'zh' ? 'zh-CN' : 'en-US', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -50,7 +51,7 @@ export function ArticleListPage() {
     const feed = getFeedById(feedId)
     if (!feed) {
       queueMicrotask(() => {
-        setError('订阅不存在')
+        setError(t('订阅不存在', 'Subscription not found'))
         setLoading(false)
       })
       return
@@ -80,7 +81,7 @@ export function ArticleListPage() {
         })
       })
       .catch((err) => {
-        setError(err instanceof Error ? err.message : '加载失败')
+        setError(err instanceof Error ? err.message : t('加载失败', 'Failed to load'))
       })
       .finally(() => {
         setLoading(false)
@@ -130,7 +131,7 @@ export function ArticleListPage() {
               onClick={handleBack}
               className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
             >
-              ← 返回
+              {t('← 返回', '← Back')}
             </button>
           </div>
         </header>
@@ -149,14 +150,14 @@ export function ArticleListPage() {
             onClick={handleBack}
             className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 shrink-0"
           >
-            ← 返回
+            {t('← 返回', '← Back')}
           </button>
           <h1 className="text-lg font-semibold truncate flex-1 min-w-0">{feedTitle}</h1>
           <button
             onClick={() => setConfirmDeleteOpen(true)}
             className="shrink-0 px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-medium"
           >
-            删除
+            {t('删除', 'Delete')}
           </button>
         </div>
       </header>
@@ -170,9 +171,9 @@ export function ArticleListPage() {
             className="w-full max-w-md mx-4 bg-white dark:bg-slate-800 rounded-xl shadow-xl p-6"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-lg font-semibold mb-2">确认删除</h2>
+            <h2 className="text-lg font-semibold mb-2">{t('确认删除', 'Confirm Delete')}</h2>
             <p className="text-slate-600 dark:text-slate-400 mb-6">
-              确定要删除订阅「{feedTitle}」吗？此操作不可恢复。
+              {t(`确定要删除订阅「${feedTitle}」吗？此操作不可恢复。`, `Are you sure you want to delete "${feedTitle}"? This cannot be undone.`)}
             </p>
             <div className="flex gap-3">
               <button
@@ -180,14 +181,14 @@ export function ArticleListPage() {
                 onClick={() => setConfirmDeleteOpen(false)}
                 className="flex-1 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
               >
-                取消
+                {t('取消', 'Cancel')}
               </button>
               <button
                 type="button"
                 onClick={handleDelete}
                 className="flex-1 px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-medium"
               >
-                确定
+                {t('确定', 'Confirm')}
               </button>
             </div>
           </div>
@@ -199,25 +200,25 @@ export function ArticleListPage() {
           <div className="mb-4">
             <input
               type="search"
-              placeholder="搜索文章…"
+              placeholder={t('搜索文章…', 'Search articles...')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full px-4 py-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              aria-label="搜索文章"
+              aria-label={t('搜索文章', 'Search articles')}
             />
           </div>
         )}
         {loading ? (
           <div className="py-12 text-center text-slate-500 dark:text-slate-400">
-            加载中…
+            {t('加载中…', 'Loading...')}
           </div>
         ) : articles.length === 0 ? (
           <div className="py-12 text-center text-slate-500 dark:text-slate-400">
-            暂无文章
+            {t('暂无文章', 'No articles')}
           </div>
         ) : filteredArticles.length === 0 ? (
           <div className="py-12 text-center text-slate-500 dark:text-slate-400">
-            未找到匹配「{searchQuery}」的文章
+            {t(`未找到匹配「${searchQuery}」的文章`, `No articles matching "${searchQuery}"`)}
           </div>
         ) : (
           <ul className="space-y-2">
@@ -241,7 +242,7 @@ export function ArticleListPage() {
                             : 'text-slate-900 dark:text-slate-100'
                         }`}
                       >
-                        {article.title || '无标题'}
+                        {article.title || t('无标题', 'Untitled')}
                       </h3>
                       <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">
                         {formatDate(article.pubDate)}

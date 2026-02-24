@@ -1,5 +1,6 @@
 import type { Article } from '../utils/storage'
 import { readResponseTextWithEmDashFix } from '../utils/textFix'
+import { t } from '../i18n'
 
 const CORS_PROXIES = [
   (u: string) => `https://api.cors.lol/?url=${encodeURIComponent(u)}`,
@@ -87,7 +88,7 @@ function parseFeedWithArticles(xmlText: string): {
   const doc = new DOMParser().parseFromString(xmlText, 'text/xml')
   const parseError = doc.querySelector('parsererror')
   if (parseError) {
-    throw new Error('RSS 格式解析失败')
+    throw new Error(t('RSS 格式解析失败', 'Failed to parse RSS'))
   }
 
   let title = ''
@@ -105,7 +106,7 @@ function parseFeedWithArticles(xmlText: string): {
     const items = Array.from(channel.querySelectorAll('item'))
     const articles = items.map((el, i) => parseItem(el, i))
     return {
-      title: title || '未命名订阅',
+      title: title || t('未命名订阅', 'Unnamed'),
       link: link || '',
       description: description || undefined,
       articles,
@@ -147,14 +148,14 @@ function parseFeedWithArticles(xmlText: string): {
       } satisfies Article
     })
     return {
-      title: title || '未命名订阅',
+      title: title || t('未命名订阅', 'Unnamed'),
       link: link || '',
       description: description || undefined,
       articles,
     }
   }
 
-  return { title: '未命名订阅', link: '', articles: [] }
+  return { title: t('未命名订阅', 'Unnamed'), link: '', articles: [] }
 }
 
 function parseRssXml(xmlText: string): {
@@ -182,7 +183,7 @@ export async function fetchAndParseRss(url: string): Promise<{
     try {
       const proxiedUrl = toProxyUrl(url)
       const res = await fetch(proxiedUrl)
-      if (!res.ok) throw new Error(`请求失败 (${res.status})`)
+      if (!res.ok) throw new Error(t(`请求失败 (${res.status})`, `Request failed (${res.status})`))
       let xml = await readResponseTextWithEmDashFix(res)
 
       if (xml.trim().startsWith('{')) {
@@ -203,7 +204,7 @@ export async function fetchAndParseRss(url: string): Promise<{
   }
 
   throw new Error(
-    lastError?.message ?? '无法获取 RSS。请检查地址是否正确，或稍后重试。'
+    lastError?.message ?? t('无法获取 RSS。请检查地址是否正确，或稍后重试。', 'Unable to fetch RSS. Please check the URL or try again later.')
   )
 }
 
@@ -219,7 +220,7 @@ export async function fetchFeedWithArticles(url: string): Promise<{
     try {
       const proxiedUrl = toProxyUrl(url)
       const res = await fetch(proxiedUrl)
-      if (!res.ok) throw new Error(`请求失败 (${res.status})`)
+      if (!res.ok) throw new Error(t(`请求失败 (${res.status})`, `Request failed (${res.status})`))
       let xml = await readResponseTextWithEmDashFix(res)
 
       if (xml.trim().startsWith('{')) {
@@ -246,6 +247,6 @@ export async function fetchFeedWithArticles(url: string): Promise<{
   }
 
   throw new Error(
-    lastError?.message ?? '无法获取 RSS。请检查地址是否正确，或稍后重试。'
+    lastError?.message ?? t('无法获取 RSS。请检查地址是否正确，或稍后重试。', 'Unable to fetch RSS. Please check the URL or try again later.')
   )
 }
