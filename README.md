@@ -1,6 +1,7 @@
 # RSSnow
 
 Free, minimal, and ready to use. 
+<img src="screenshots/screenshot1.png" width="32%" /> <img src="screenshots/screenshot2.png" width="32%" /> <img src="screenshots/screenshot3.png" width="32%" />
 
 An RSS reader designed to improve your reading experience. Supports customizable fonts, background, font size, line spacing, and brightness. Automatically saves your reading progress.
 
