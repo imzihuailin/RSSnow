@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   getFeedById,
@@ -8,7 +8,12 @@ import {
 } from '../utils/storage'
 import { fetchFeedWithArticles } from '../hooks/useRssParse'
 import type { Article } from '../utils/storage'
-import { getReadArticleIds } from '../utils/readingProgress'
+import {
+  getReadArticleIds,
+  getLatestUnfinishedArticle,
+  getDismissedRecentUnfinished,
+  setDismissedRecentUnfinished,
+} from '../utils/readingProgress'
 import { t, getLang } from '../i18n'
 
 function formatDate(pubDate: string): string {
@@ -28,6 +33,7 @@ export function ArticleListPage() {
   const { feedId } = useParams<{ feedId: string }>()
   const navigate = useNavigate()
   const feedTitle = (feedId ? getFeedById(feedId)?.title : '') ?? ''
+
   const [articles, setArticles] = useState<Article[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -36,8 +42,8 @@ export function ArticleListPage() {
   const [readIds, setReadIds] = useState<Set<string>>(() =>
     feedId ? getReadArticleIds(feedId) : new Set()
   )
+  const [dismissedFeedIdInSession, setDismissedFeedIdInSession] = useState<string | null>(null)
 
-  // 从阅读页返回（Tab 切换 / 可见性变化）时刷新已读集合
   useEffect(() => {
     if (!feedId) return
     const refresh = () => setReadIds(getReadArticleIds(feedId))
@@ -88,7 +94,6 @@ export function ArticleListPage() {
       })
   }, [feedId])
 
-  // 文章列表渲染完毕后恢复之前保存的滚动位置
   useEffect(() => {
     if (loading || articles.length === 0 || !feedId) return
     const key = `articleListScroll_${feedId}`
@@ -102,16 +107,51 @@ export function ArticleListPage() {
   }, [loading, articles.length, feedId])
 
   const handleBack = () => navigate('/')
+
   const handleDelete = () => {
-    if (feedId) {
-      deleteFeed(feedId)
-      navigate('/')
-    }
+    if (!feedId) return
+    deleteFeed(feedId)
+    navigate('/')
   }
+
   const handleArticleClick = (article: Article) => {
     if (feedId) sessionStorage.setItem(`articleListScroll_${feedId}`, String(window.scrollY))
     navigate(`/read/${feedId}/${encodeURIComponent(article.id)}`)
   }
+
+  const recentUnfinishedData = useMemo(() => {
+    if (!feedId || loading || articles.length === 0) return null
+
+    const allowedArticleIds = new Set(articles.map((article) => article.id))
+    const latest = getLatestUnfinishedArticle(feedId, allowedArticleIds)
+    if (!latest) return null
+
+    const dismissed = getDismissedRecentUnfinished(feedId)
+    const shouldHideByDismissed =
+      dismissed?.articleId === latest.articleId && latest.updatedAt <= dismissed.updatedAt
+    if (shouldHideByDismissed) return null
+
+    const article = articles.find((item) => item.id === latest.articleId)
+    if (!article) return null
+
+    return {
+      article,
+      progress: latest.progress,
+      updatedAt: latest.updatedAt,
+    }
+  }, [feedId, loading, articles])
+
+  const handleDismissRecentUnfinished = () => {
+    if (!feedId || !recentUnfinishedData) return
+    setDismissedRecentUnfinished(feedId, recentUnfinishedData.article.id, recentUnfinishedData.updatedAt)
+    setDismissedFeedIdInSession(feedId)
+  }
+
+  const showRecentUnfinishedCard =
+    !loading &&
+    !!recentUnfinishedData &&
+    articles.length > 0 &&
+    !(dismissedFeedIdInSession != null && dismissedFeedIdInSession === feedId)
 
   const filteredArticles = searchQuery.trim()
     ? articles.filter((a) => {
@@ -135,9 +175,7 @@ export function ArticleListPage() {
             </button>
           </div>
         </header>
-        <main className="max-w-3xl mx-auto px-4 py-8 text-red-600 dark:text-red-400">
-          {error}
-        </main>
+        <main className="max-w-3xl mx-auto px-4 py-8 text-red-600 dark:text-red-400">{error}</main>
       </div>
     )
   }
@@ -173,7 +211,7 @@ export function ArticleListPage() {
           >
             <h2 className="text-lg font-semibold mb-2">{t('确认删除', 'Confirm Delete')}</h2>
             <p className="text-slate-600 dark:text-slate-400 mb-6">
-              {t(`确定要删除订阅「${feedTitle}」吗？此操作不可恢复。`, `Are you sure you want to delete "${feedTitle}"? This cannot be undone.`)}
+              {t(`确定要删除订阅“${feedTitle}”吗？此操作不可恢复。`, `Are you sure you want to delete "${feedTitle}"? This cannot be undone.`)}
             </p>
             <div className="flex gap-3">
               <button
@@ -188,7 +226,7 @@ export function ArticleListPage() {
                 onClick={handleDelete}
                 className="flex-1 px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-medium"
               >
-                {t('确定', 'Confirm')}
+                {t('确认', 'Confirm')}
               </button>
             </div>
           </div>
@@ -200,7 +238,7 @@ export function ArticleListPage() {
           <div className="mb-4">
             <input
               type="search"
-              placeholder={t('搜索文章…', 'Search articles...')}
+              placeholder={t('搜索文章...', 'Search articles...')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full px-4 py-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -208,17 +246,50 @@ export function ArticleListPage() {
             />
           </div>
         )}
+
+        {showRecentUnfinishedCard && recentUnfinishedData && (
+          <div className="mb-4 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50/80 dark:bg-blue-900/30 px-4 py-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                  {t('最近阅读', 'Recently Read')}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => handleArticleClick(recentUnfinishedData.article)}
+                  className="mt-1 text-left text-base font-semibold text-slate-900 dark:text-slate-100 hover:underline line-clamp-2"
+                >
+                  {recentUnfinishedData.article.title || t('无标题', 'Untitled')}
+                </button>
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                  {t(`上次进度 ${Math.round(recentUnfinishedData.progress)}%`, `Last progress ${Math.round(recentUnfinishedData.progress)}%`)}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleDismissRecentUnfinished}
+                className="shrink-0 px-2.5 py-1.5 rounded-md text-xs font-medium bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700"
+              >
+                {t('关闭', 'Dismiss')}
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleArticleClick(recentUnfinishedData.article)}
+              className="mt-3 inline-flex items-center px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
+            >
+              {t('继续阅读', 'Continue')}
+            </button>
+          </div>
+        )}
+
         {loading ? (
-          <div className="py-12 text-center text-slate-500 dark:text-slate-400">
-            {t('加载中…', 'Loading...')}
-          </div>
+          <div className="py-12 text-center text-slate-500 dark:text-slate-400">{t('加载中...', 'Loading...')}</div>
         ) : articles.length === 0 ? (
-          <div className="py-12 text-center text-slate-500 dark:text-slate-400">
-            {t('暂无文章', 'No articles')}
-          </div>
+          <div className="py-12 text-center text-slate-500 dark:text-slate-400">{t('暂无文章', 'No articles')}</div>
         ) : filteredArticles.length === 0 ? (
           <div className="py-12 text-center text-slate-500 dark:text-slate-400">
-            {t(`未找到匹配「${searchQuery}」的文章`, `No articles matching "${searchQuery}"`)}
+            {t(`未找到匹配“${searchQuery}”的文章`, `No articles matching "${searchQuery}"`)}
           </div>
         ) : (
           <ul className="space-y-2">
@@ -244,16 +315,14 @@ export function ArticleListPage() {
                       >
                         {article.title || t('无标题', 'Untitled')}
                       </h3>
-                      <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">
-                        {formatDate(article.pubDate)}
-                      </p>
+                      <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">{formatDate(article.pubDate)}</p>
                       {article.description && !isRead && (
                         <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 line-clamp-2">
-                          {article.description.replace(/<[^>]+>/g, '').slice(0, 100)}…
+                          {article.description.replace(/<[^>]+>/g, '').slice(0, 100)}...
                         </p>
                       )}
                     </div>
-                    {isRead && <span className="shrink-0 text-base mt-0.5">✅</span>}
+                    {isRead && <span className="shrink-0 text-base mt-0.5">✓</span>}
                   </button>
                 </li>
               )
