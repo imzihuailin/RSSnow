@@ -74,6 +74,11 @@ export function ReaderPage() {
   const ignoreJumpRef = useRef(false)
   const jumpOriginPctRef = useRef<number | null>(null)
   const fetchAbortRef = useRef<AbortController | null>(null)
+  const scrollPositionRef = useRef(0) // 保存重新抓取前的滚动位置
+
+  // 重新获取相关
+  const [showRefetchDialog, setShowRefetchDialog] = useState(false)
+  const [refetchTrigger, setRefetchTrigger] = useState(0)
 
   const prefs = getReadingPreferences()
   const [toolbarVisible, setToolbarVisible] = useState(false)
@@ -276,9 +281,15 @@ export function ReaderPage() {
     }
   }, [contentReady, feedId, decodedId])
 
+  // needsFetch: 初次进入页面时自动抓取的条件（没有内容且没有错误）
   const needsFetch = !!(article && !hasRenderableArticleContent && !usableFetchedContent && !fetchError)
+  // shouldRefetch: 用户手动触发重新获取的条件
+  const shouldRefetch = refetchTrigger > 0
+
   useEffect(() => {
-    if (!needsFetch || !article?.link) return
+    const shouldFetch = needsFetch || shouldRefetch
+    if (!shouldFetch || !article?.link) return
+
     const articleLink = article.link
     let cancelled = false
     const controller = new AbortController()
@@ -292,6 +303,16 @@ export function ReaderPage() {
         .then((content) => {
           if (cancelled) return
           setFetchedContent(articleLink, content)
+          // 抓取成功后恢复滚动位置
+          if (shouldRefetch && scrollPositionRef.current > 0) {
+            setTimeout(() => {
+              const el = containerRef.current
+              if (el) {
+                el.scrollTop = scrollPositionRef.current
+                scrollPositionRef.current = 0
+              }
+            }, 100)
+          }
         })
         .catch((err) => {
           if (cancelled) return
@@ -310,7 +331,7 @@ export function ReaderPage() {
       controller.abort()
       if (fetchAbortRef.current === controller) fetchAbortRef.current = null
     }
-  }, [needsFetch, article?.link])
+  }, [needsFetch, shouldRefetch, article?.link])
 
   const handleProgressChange = (value: number) => {
     const el = containerRef.current
@@ -363,6 +384,26 @@ export function ReaderPage() {
     setJumpOriginPct(null)
   }
 
+  // 重新获取文章
+  const handleRefetch = useCallback(() => {
+    setShowRefetchDialog(false)
+    if (!article?.link) return
+
+    // 保存当前滚动位置
+    const el = containerRef.current
+    if (el) {
+      scrollPositionRef.current = el.scrollTop
+    }
+
+    // 清除缓存
+    deleteFetchedContent(article.link)
+
+    // 重置错误状态，触发重新抓取
+    setFetchError(null)
+    // 触发重新获取
+    setRefetchTrigger(prev => prev + 1)
+  }, [article?.link])
+
   const handleBack = () => navigate(`/feed/${feedId}`)
 
   if (!article) {
@@ -391,15 +432,44 @@ export function ReaderPage() {
     >
       {/* 顶部返回按钮 - 与操作栏同步显示/隐藏 */}
       <div
-        className={`absolute top-0 left-0 right-0 z-40 flex justify-between items-center px-4 py-3 transition-transform duration-300 ease-out ${
+        className={`absolute top-0 left-0 right-0 z-40 flex justify-end items-center px-4 py-3 transition-transform duration-300 ease-out ${
           toolbarVisible ? 'translate-y-0' : '-translate-y-full'
         }`}
       >
         <button
           onClick={handleBack}
-          className="px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+          className="px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors mr-auto"
         >
           {t('← 返回', '← Back')}
+        </button>
+      </div>
+
+      {/* 刷新按钮 - 始终可见 */}
+      <div className="fixed top-3 right-3 z-50">
+        <button
+          onClick={() => setShowRefetchDialog(true)}
+          disabled={fetching}
+          className={`p-2 rounded-lg transition-colors shadow-lg ${
+            fetching ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white/10 bg-white/20'
+          }`}
+          style={{
+            backgroundColor: bgId === 'dark' ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.08)',
+          }}
+          title={t('重新获取', 'Refetch')}
+        >
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            />
+          </svg>
         </button>
       </div>
 
@@ -496,6 +566,46 @@ export function ReaderPage() {
                 : `rgba(255,255,255,${brightness - 1})`,
           }}
         />
+      )}
+
+      {/* 重新获取确认弹窗 */}
+      {showRefetchDialog && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={() => setShowRefetchDialog(false)}
+        >
+          <div
+            className="w-full max-w-md mx-4 bg-white dark:bg-slate-800 rounded-xl shadow-xl p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-semibold mb-2">
+              {fetchError
+                ? t('抓取失败', 'Fetch Failed')
+                : t('重新获取文章', 'Refetch Article')}
+            </h2>
+            <p className="text-slate-600 dark:text-slate-400 mb-6">
+              {fetchError
+                ? t('检测到抓取错误，是否重新获取？', 'Fetch error detected. Refetch now?')
+                : t('确定要重新获取这篇文章吗？', 'Are you sure you want to refetch this article?')}
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowRefetchDialog(false)}
+                className="flex-1 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+              >
+                {t('取消', 'Cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={handleRefetch}
+                className="flex-1 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors font-medium"
+              >
+                {t('确定', 'OK')}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <ReaderToolbar
