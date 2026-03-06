@@ -153,14 +153,49 @@ export function ArticleListPage() {
     articles.length > 0 &&
     !(dismissedFeedIdInSession != null && dismissedFeedIdInSession === feedId)
 
-  const filteredArticles = searchQuery.trim()
-    ? articles.filter((a) => {
-        const q = searchQuery.toLowerCase()
-        const title = (a.title || '').toLowerCase()
-        const desc = (a.description || '').replace(/<[^>]+>/g, '').toLowerCase()
-        return title.includes(q) || desc.includes(q)
-      })
-    : articles
+  const displayedArticles = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    const indexed = articles.map((article, originalIndex) => ({ article, originalIndex }))
+    const filtered = q
+      ? indexed.filter(({ article }) => {
+          const title = (article.title || '').toLowerCase()
+          const desc = (article.description || '').replace(/<[^>]+>/g, '').toLowerCase()
+          return title.includes(q) || desc.includes(q)
+        })
+      : indexed
+
+    const getTimestamp = (article: Article): number | null => {
+      const ts = Date.parse(article.pubDate)
+      return Number.isNaN(ts) ? null : ts
+    }
+
+    const compareByPubDateDesc = (
+      a: { article: Article; originalIndex: number },
+      b: { article: Article; originalIndex: number }
+    ): number => {
+      const ta = getTimestamp(a.article)
+      const tb = getTimestamp(b.article)
+      if (ta != null && tb != null && ta !== tb) return tb - ta
+      if (ta != null && tb == null) return -1
+      if (ta == null && tb != null) return 1
+      return a.originalIndex - b.originalIndex
+    }
+
+    if (q) {
+      return [...filtered].sort(compareByPubDateDesc).map(({ article }) => article)
+    }
+
+    const unread: Array<{ article: Article; originalIndex: number }> = []
+    const read: Array<{ article: Article; originalIndex: number }> = []
+    for (const item of filtered) {
+      if (readIds.has(item.article.id)) read.push(item)
+      else unread.push(item)
+    }
+
+    unread.sort(compareByPubDateDesc)
+    read.sort(compareByPubDateDesc)
+    return [...unread, ...read].map(({ article }) => article)
+  }, [articles, readIds, searchQuery])
 
   if (error) {
     return (
@@ -287,13 +322,13 @@ export function ArticleListPage() {
           <div className="py-12 text-center text-slate-500 dark:text-slate-400">{t('加载中...', 'Loading...')}</div>
         ) : articles.length === 0 ? (
           <div className="py-12 text-center text-slate-500 dark:text-slate-400">{t('暂无文章', 'No articles')}</div>
-        ) : filteredArticles.length === 0 ? (
+        ) : displayedArticles.length === 0 ? (
           <div className="py-12 text-center text-slate-500 dark:text-slate-400">
             {t(`未找到匹配“${searchQuery}”的文章`, `No articles matching "${searchQuery}"`)}
           </div>
         ) : (
           <ul className="space-y-2">
-            {filteredArticles.map((article) => {
+            {displayedArticles.map((article) => {
               const isRead = readIds.has(article.id)
               return (
                 <li key={article.id}>
