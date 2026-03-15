@@ -1,7 +1,23 @@
-import { useRef, useState, useEffect, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { getArticlesCache, getFetchedContent, setFetchedContent, deleteFetchedContent } from '../utils/storage'
-import { getReadingProgress, setReadingProgress, isArticleRead, toggleArticleRead } from '../utils/readingProgress'
+import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import {
+  deleteFetchedContent,
+  getArticlesCache,
+  getFavoriteEntry,
+  getFetchedContent,
+  isFavoriteArticle,
+  makeFavoriteArticleId,
+  parseFavoriteArticleId,
+  setFetchedContent,
+  toggleFavoriteArticle,
+} from '../utils/storage'
+import type { Article, FavoriteArticleEntry } from '../utils/storage'
+import {
+  getReadingProgress,
+  setReadingProgress,
+  isArticleRead,
+  toggleArticleRead,
+} from '../utils/readingProgress'
 import { getReadingPreferences, saveReadingPreferences } from '../utils/preferences'
 import { fetchArticleContent } from '../hooks/useFetchArticle'
 import { ReaderToolbar, FONT_OPTIONS, BG_OPTIONS } from '../components/ReaderToolbar'
@@ -15,6 +31,30 @@ const SHORT_CONTENT_TEXT_LEN = 120
 const DOUBLE_BR_RE = /<br\s*\/?>\s*(?:&nbsp;|\s)*<br\s*\/?>/i
 const BLOCK_BOUNDARY_RE = /<\/(p|div|section|article)>\s*<(p|div|section|article)\b/i
 const HR_RE = /<hr\b/i
+
+interface ReaderLocationState {
+  favoriteEntry?: FavoriteArticleEntry
+  fromFavorites?: boolean
+}
+
+function StarIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg
+      className="w-5 h-5"
+      viewBox="0 0 24 24"
+      fill={filled ? 'currentColor' : 'none'}
+      stroke="currentColor"
+      strokeWidth={filled ? 1.4 : 1.8}
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M11.48 3.5c.2-.62 1.08-.62 1.28 0l1.81 5.56a.68.68 0 00.65.47h5.84c.66 0 .93.84.4 1.23l-4.72 3.43a.68.68 0 00-.25.76l1.8 5.56c.2.62-.5 1.12-1.03.74l-4.72-3.44a.68.68 0 00-.8 0l-4.72 3.44c-.53.38-1.23-.12-1.03-.74l1.8-5.56a.68.68 0 00-.25-.76L2.8 10.76c-.53-.39-.26-1.23.4-1.23h5.84a.68.68 0 00.65-.47L11.48 3.5z"
+      />
+    </svg>
+  )
+}
 
 function isLikelyHtml(content?: string | null): boolean {
   if (!content) return false
@@ -59,9 +99,20 @@ function flushProgressSave(
   }
 }
 
+function buildFallbackArticle(link: string, title?: string): Article {
+  return {
+    id: makeFavoriteArticleId(link),
+    title: title || t('无标题', 'Untitled'),
+    link,
+    pubDate: '',
+  }
+}
+
 export function ReaderPage() {
   const { feedId, articleId } = useParams<{ feedId: string; articleId: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
+  const locationState = (location.state as ReaderLocationState | null) ?? null
   const containerRef = useRef<HTMLDivElement>(null)
   const saveProgressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasRestoredRef = useRef(false)
@@ -74,9 +125,8 @@ export function ReaderPage() {
   const ignoreJumpRef = useRef(false)
   const jumpOriginPctRef = useRef<number | null>(null)
   const fetchAbortRef = useRef<AbortController | null>(null)
-  const scrollPositionRef = useRef(0) // 保存重新抓取前的滚动位置
+  const scrollPositionRef = useRef(0)
 
-  // 重新获取相关
   const [showRefetchDialog, setShowRefetchDialog] = useState(false)
   const [refetchTrigger, setRefetchTrigger] = useState(0)
 
@@ -92,9 +142,39 @@ export function ReaderPage() {
   const [brightness, setBrightness] = useState(prefs.brightness)
 
   const decodedId = articleId ? decodeURIComponent(articleId) : ''
+  const favoriteLinkFromRoute = parseFavoriteArticleId(decodedId)
   const cached = feedId ? getArticlesCache(feedId) : null
-  const article = cached?.articles?.find((a) => a.id === decodedId)
+
+  const favoriteEntry = useMemo(() => {
+    if (!feedId) return null
+    const stateEntry = locationState?.favoriteEntry
+    if (stateEntry?.feedId === feedId) return stateEntry
+    if (!favoriteLinkFromRoute) return null
+    return (
+      getFavoriteEntry(feedId, favoriteLinkFromRoute) ?? {
+        feedId,
+        link: favoriteLinkFromRoute,
+        title: stateEntry?.title || t('无标题', 'Untitled'),
+        favoritedAt: 0,
+      }
+    )
+  }, [favoriteLinkFromRoute, feedId, locationState])
+
+  const article = useMemo(() => {
+    const directMatch = cached?.articles?.find((item) => item.id === decodedId)
+    if (directMatch) return directMatch
+
+    if (favoriteEntry) {
+      const cachedByLink = cached?.articles?.find((item) => item.link === favoriteEntry.link)
+      if (cachedByLink) return cachedByLink
+      return buildFallbackArticle(favoriteEntry.link, favoriteEntry.title)
+    }
+
+    return null
+  }, [cached?.articles, decodedId, favoriteEntry])
+
   const articleContent = article?.content ?? null
+  const readingKey = article?.id ?? decodedId
 
   useEffect(() => {
     return () => {
@@ -105,7 +185,6 @@ export function ReaderPage() {
     }
   }, [])
 
-  // 关闭标签页或切到后台时即时保存进度，防止丢失
   useEffect(() => {
     const flush = () => {
       if (saveProgressTimerRef.current) {
@@ -128,15 +207,24 @@ export function ReaderPage() {
 
   useEffect(() => {
     hasRestoredRef.current = false
-  }, [feedId, decodedId])
+  }, [feedId, readingKey])
 
   const [, setReadVersion] = useState(0)
-  const isRead = feedId && decodedId ? isArticleRead(feedId, decodedId) : false
+  const isRead = feedId && readingKey ? isArticleRead(feedId, readingKey) : false
 
   const handleToggleRead = () => {
-    if (!feedId || !decodedId) return
-    toggleArticleRead(feedId, decodedId)
+    if (!feedId || !readingKey) return
+    toggleArticleRead(feedId, readingKey)
     setReadVersion((v) => v + 1)
+  }
+
+  const [, setFavoriteVersion] = useState(0)
+  const isFavorited = feedId && article?.link ? isFavoriteArticle(feedId, article.link) : false
+
+  const handleToggleFavorite = () => {
+    if (!feedId || !article?.link) return
+    toggleFavoriteArticle(feedId, article)
+    setFavoriteVersion((v) => v + 1)
   }
 
   const [fetching, setFetching] = useState(false)
@@ -151,9 +239,9 @@ export function ReaderPage() {
 
   useEffect(() => {
     feedIdRef.current = feedId ?? ''
-    decodedIdRef.current = decodedId
+    decodedIdRef.current = readingKey
     jumpOriginPctRef.current = jumpOriginPct
-  }, [feedId, decodedId, jumpOriginPct])
+  }, [feedId, readingKey, jumpOriginPct])
 
   useEffect(() => {
     if (!article?.link || !fetchedContent) return
@@ -180,13 +268,12 @@ export function ReaderPage() {
     const rawPct = (scrollTop / maxScroll) * 100
     setProgress(rawPct)
     const effectivePct = getEffectiveProgress(rawPct, jumpOriginPctRef.current)
-    // 防抖保存进度
     if (saveProgressTimerRef.current) clearTimeout(saveProgressTimerRef.current)
     saveProgressTimerRef.current = setTimeout(() => {
-      if (feedId && decodedId) setReadingProgress(feedId, decodedId, effectivePct)
+      if (feedId && readingKey) setReadingProgress(feedId, readingKey, effectivePct)
       saveProgressTimerRef.current = null
     }, DEBOUNCE_MS)
-    // 停留点检测：500ms 无新 scroll → 用户已停下，比较与上一停留点的距离
+
     if (settleTimerRef.current) clearTimeout(settleTimerRef.current)
     settleTimerRef.current = setTimeout(() => {
       settleTimerRef.current = null
@@ -206,14 +293,14 @@ export function ReaderPage() {
       if (delta > curCH * JUMP_THRESHOLD_SCREENS) {
         const originPct = settledPctRef.current
         setJumpOriginPct(originPct)
-        if (feedId && decodedId) setReadingProgress(feedId, decodedId, originPct)
+        if (feedId && readingKey) setReadingProgress(feedId, readingKey, originPct)
       } else if (jumpOriginPctRef.current !== null && Math.abs(curPct - jumpOriginPctRef.current) < 3) {
         setJumpOriginPct(null)
-        if (feedId && decodedId) setReadingProgress(feedId, decodedId, curPct)
+        if (feedId && readingKey) setReadingProgress(feedId, readingKey, curPct)
       }
       settledPctRef.current = curPct
     }, SETTLE_MS)
-  }, [feedId, decodedId])
+  }, [feedId, readingKey])
 
   useEffect(() => {
     const el = containerRef.current
@@ -231,26 +318,23 @@ export function ReaderPage() {
         clearTimeout(settleTimerRef.current)
         settleTimerRef.current = null
       }
-      // 离开页面前即时保存当前进度
       const { scrollTop, scrollHeight, clientHeight } = el
       const maxScroll = scrollHeight - clientHeight
-      if (maxScroll > 0 && feedId && decodedId) {
+      if (maxScroll > 0 && feedId && readingKey) {
         const rawPct = (scrollTop / maxScroll) * 100
-        setReadingProgress(feedId, decodedId, getEffectiveProgress(rawPct, jumpOriginPctRef.current))
+        setReadingProgress(feedId, readingKey, getEffectiveProgress(rawPct, jumpOriginPctRef.current))
       }
     }
-  }, [updateProgress, article, feedId, decodedId])
+  }, [updateProgress, article, feedId, readingKey])
 
-  // 偏好变更时持久化
   useEffect(() => {
     saveReadingPreferences({ fontId, fontSize, lineHeight, pagePadding, bgId, brightness })
   }, [fontId, fontSize, lineHeight, pagePadding, bgId, brightness])
 
-  // 进入页面时恢复阅读进度（上次读到哪里，下次接着读）
-  const contentReady = article && (hasRenderableArticleContent || usableFetchedContent || fetchError)
+  const contentReady = !!article && (hasRenderableArticleContent || usableFetchedContent || fetchError)
   useEffect(() => {
-    if (!contentReady || !feedId || !decodedId || hasRestoredRef.current) return
-    const saved = getReadingProgress(feedId, decodedId)
+    if (!contentReady || !feedId || !readingKey || hasRestoredRef.current) return
+    const saved = getReadingProgress(feedId, readingKey)
     if (!saved || saved.progress <= 0) return
     const el = containerRef.current
     if (!el) return
@@ -258,6 +342,7 @@ export function ReaderPage() {
     let retries = 0
     const maxRetries = 10
     let timeoutId: ReturnType<typeof setTimeout> | null = null
+
     const tryRestore = () => {
       const { scrollHeight, clientHeight } = el
       const maxScroll = scrollHeight - clientHeight
@@ -274,16 +359,15 @@ export function ReaderPage() {
         timeoutId = setTimeout(tryRestore, 80)
       }
     }
+
     const rafId = requestAnimationFrame(() => requestAnimationFrame(tryRestore))
     return () => {
       cancelAnimationFrame(rafId)
       if (timeoutId) clearTimeout(timeoutId)
     }
-  }, [contentReady, feedId, decodedId])
+  }, [contentReady, feedId, readingKey])
 
-  // needsFetch: 初次进入页面时自动抓取的条件（没有内容且没有错误）
   const needsFetch = !!(article && !hasRenderableArticleContent && !usableFetchedContent && !fetchError)
-  // shouldRefetch: 用户手动触发重新获取的条件
   const shouldRefetch = refetchTrigger > 0
 
   useEffect(() => {
@@ -303,7 +387,6 @@ export function ReaderPage() {
         .then((content) => {
           if (cancelled) return
           setFetchedContent(articleLink, content)
-          // 抓取成功后恢复滚动位置
           if (shouldRefetch && scrollPositionRef.current > 0) {
             setTimeout(() => {
               const el = containerRef.current
@@ -318,7 +401,7 @@ export function ReaderPage() {
           if (cancelled) return
           const msg = err instanceof Error ? err.message : t('抓取失败', 'Fetch failed')
           if (msg === t('请求已取消', 'Request cancelled')) return
-          setFetchError(t('抓取失败，请刷新标签页', 'Fetch failed, please refresh the page'))
+          setFetchError(t('抓取失败，请刷新页面重试', 'Fetch failed, please refresh the page'))
         })
         .finally(() => {
           if (fetchAbortRef.current === controller) fetchAbortRef.current = null
@@ -342,7 +425,7 @@ export function ReaderPage() {
     el.scrollTop = (value / 100) * maxScroll
     setProgress(value)
     const effectiveValue = getEffectiveProgress(value, jumpOriginPctRef.current)
-    if (feedId && decodedId) setReadingProgress(feedId, decodedId, effectiveValue)
+    if (feedId && readingKey) setReadingProgress(feedId, readingKey, effectiveValue)
   }
 
   const handleContentClick = () => {
@@ -352,15 +435,15 @@ export function ReaderPage() {
         contentClickTimerRef.current = null
       }
     }
-    // 拖动选中文字或双击选中文字时，不呼出操作栏
+
     const sel = window.getSelection()
     if (sel && sel.toString().trim().length > 0) {
       clearPending()
       return
     }
+
     const now = Date.now()
     if (now - lastContentClickRef.current < DOUBLE_CLICK_MS) {
-      // 双击：取消待执行的切换，不呼出操作栏
       clearPending()
       lastContentClickRef.current = 0
       return
@@ -384,27 +467,27 @@ export function ReaderPage() {
     setJumpOriginPct(null)
   }
 
-  // 重新获取文章
-  const handleRefetch = useCallback(() => {
+  const handleRefetch = () => {
     setShowRefetchDialog(false)
     if (!article?.link) return
 
-    // 保存当前滚动位置
     const el = containerRef.current
     if (el) {
       scrollPositionRef.current = el.scrollTop
     }
 
-    // 清除缓存
     deleteFetchedContent(article.link)
-
-    // 重置错误状态，触发重新抓取
     setFetchError(null)
-    // 触发重新获取
-    setRefetchTrigger(prev => prev + 1)
-  }, [article?.link])
+    setRefetchTrigger((prev) => prev + 1)
+  }
 
-  const handleBack = () => navigate(`/feed/${feedId}`)
+  const handleBack = () => {
+    if (locationState?.fromFavorites && feedId) {
+      navigate(`/feed/${feedId}/favorites`)
+      return
+    }
+    navigate(`/feed/${feedId}`)
+  }
 
   if (!article) {
     return (
@@ -430,22 +513,33 @@ export function ReaderPage() {
       className="fixed inset-0 overflow-hidden flex flex-col"
       style={{ backgroundColor: bg.bg, color: bg.text }}
     >
-      {/* 顶部返回按钮 - 与操作栏同步显示/隐藏 */}
       <div
-        className={`absolute top-0 left-0 right-0 z-40 flex justify-end items-center px-4 py-3 transition-transform duration-300 ease-out ${
+        className={`absolute top-0 left-0 right-0 z-40 flex items-center px-4 py-3 transition-transform duration-300 ease-out ${
           toolbarVisible ? 'translate-y-0' : '-translate-y-full'
         }`}
       >
         <button
           onClick={handleBack}
-          className="px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors mr-auto"
+          className="px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
         >
-          {t('← 返回', '← Back')}
+          {t('返回', 'Back')}
         </button>
       </div>
 
-      {/* 刷新按钮 - 始终可见 */}
-      <div className="fixed top-3 right-3 z-50">
+      <div className="fixed top-3 right-3 z-50 flex items-center gap-2.5">
+        <button
+          onClick={handleToggleFavorite}
+          className={`p-2 rounded-lg transition-colors shadow-lg ${
+            isFavorited ? 'text-amber-500' : 'hover:bg-white/10 bg-white/20'
+          }`}
+          style={{
+            backgroundColor: bgId === 'dark' ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.08)',
+          }}
+          title={isFavorited ? t('鍙栨秷鏀惰棌', 'Remove favorite') : t('鏀惰棌', 'Favorite')}
+          aria-pressed={isFavorited}
+        >
+          <StarIcon filled={isFavorited} />
+        </button>
         <button
           onClick={() => setShowRefetchDialog(true)}
           disabled={fetching}
@@ -473,7 +567,6 @@ export function ReaderPage() {
         </button>
       </div>
 
-      {/* 可滚动内容区 - 单击唤出/收起操作栏，双击不触发 */}
       <div
         ref={containerRef}
         onClick={handleContentClick}
@@ -486,56 +579,74 @@ export function ReaderPage() {
         }}
         className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain pt-14 pb-8 px-3 sm:px-4 cursor-default"
       >
-        <div className="mx-auto" style={{ maxWidth: pagePadding > 0 ? `${100 - pagePadding * 2}%` : '100%' }}>
-          <h1 className="font-bold mb-6" style={{ fontFamily: font.fontFamily, fontSize: `${fontSize * 1.25}px`, lineHeight }}>
+        <div
+          className="mx-auto"
+          style={{ maxWidth: pagePadding > 0 ? `${100 - pagePadding * 2}%` : '100%' }}
+        >
+          <h1
+            className="font-bold mb-6"
+            style={{ fontFamily: font.fontFamily, fontSize: `${fontSize * 1.25}px`, lineHeight }}
+          >
             {article.title}
           </h1>
           {fetching ? (
-            <p className="opacity-80 py-8">{t('抓取原文中…', 'Fetching article...')}</p>
-          ) : (hasRenderableArticleContent || usableFetchedContent) ? (
-              <article
-                className={`reader-content [&_img]:max-w-full [&_a]:hover:underline [&_p]:my-4 [&_h1]:text-2xl [&_h2]:text-xl [&_h3]:text-lg [&_ul]:my-2 [&_ol]:my-2 ${
-                  bgId === 'dark' ? '[&_a]:text-sky-300' : '[&_a]:text-blue-600'
-                }`}
-                style={{ fontFamily: font.fontFamily, fontSize: `${fontSize}px`, lineHeight }}
-                dangerouslySetInnerHTML={{
-                  __html:
-                    (hasRenderableArticleContent ? articleContent : '') ||
-                    usableFetchedContent ||
-                    t('暂无正文', 'No content'),
-                }}
-              />
+            <p className="opacity-80 py-8">{t('抓取原文中...', 'Fetching article...')}</p>
+          ) : hasRenderableArticleContent || usableFetchedContent ? (
+            <article
+              className={`reader-content [&_img]:max-w-full [&_a]:hover:underline [&_p]:my-4 [&_h1]:text-2xl [&_h2]:text-xl [&_h3]:text-lg [&_ul]:my-2 [&_ol]:my-2 ${
+                bgId === 'dark' ? '[&_a]:text-sky-300' : '[&_a]:text-blue-600'
+              }`}
+              style={{ fontFamily: font.fontFamily, fontSize: `${fontSize}px`, lineHeight }}
+              dangerouslySetInnerHTML={{
+                __html:
+                  (hasRenderableArticleContent ? articleContent : '') ||
+                  usableFetchedContent ||
+                  t('暂无正文', 'No content'),
+              }}
+            />
           ) : fetchError ? (
             <div className="space-y-4">
               <p className="opacity-80">{fetchError}</p>
             </div>
           ) : (
-            <p className="opacity-80">{t('原文抓取失败，请退出重试，或在新窗口打开原文', 'Failed to fetch article. Please try again or open in a new tab.')}</p>
+            <p className="opacity-80">
+              {t(
+                '原文抓取失败，请退出后重试，或在新窗口打开原文',
+                'Failed to fetch article. Please try again or open in a new tab.'
+              )}
+            </p>
           )}
-          <div className="mt-8 pt-4 border-t flex items-center justify-between" style={{ borderColor: bg.text }}>
+          <div
+            className="mt-8 pt-4 border-t flex items-center justify-between gap-4"
+            style={{ borderColor: bg.text }}
+          >
             <a
               href={article.link}
               target="_blank"
               rel="noopener noreferrer"
-              className={`opacity-35 ${bgId === 'dark' ? 'text-sky-300 hover:underline' : 'text-blue-600 hover:underline'}`}
+              className={`opacity-35 ${
+                bgId === 'dark' ? 'text-sky-300 hover:underline' : 'text-blue-600 hover:underline'
+              }`}
             >
               {t('在新窗口打开原文 →', 'Open original →')}
             </a>
             <button
-              onClick={(e) => { e.stopPropagation(); handleToggleRead() }}
+              onClick={(e) => {
+                e.stopPropagation()
+                handleToggleRead()
+              }}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0 ${
                 isRead
                   ? 'bg-gray-300 text-gray-500'
                   : 'bg-emerald-600 text-white hover:bg-emerald-700'
               }`}
             >
-              {isRead ? t('✅ 已标记', '✅ Read') : t('标记已读', 'Mark as read')}
+              {isRead ? t('✓ 已标记', '✓ Read') : t('标记已读', 'Mark as read')}
             </button>
           </div>
         </div>
       </div>
 
-      {/* 回到原进度按钮 */}
       <div
         className={`fixed bottom-24 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 ease-out ${
           jumpOriginPct !== null
@@ -544,18 +655,20 @@ export function ReaderPage() {
         }`}
       >
         <button
-          onClick={(e) => { e.stopPropagation(); handleReturnToOrigin() }}
+          onClick={(e) => {
+            e.stopPropagation()
+            handleReturnToOrigin()
+          }}
           className="px-4 py-2 rounded-full backdrop-blur-md shadow-lg text-sm font-medium transition-colors"
           style={{
             backgroundColor: bgId === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
             color: bg.text,
           }}
         >
-          {t('↑ 回到原进度', '↑ Return to position')}
+          {t('返回原进度', 'Return to position')}
         </button>
       </div>
 
-      {/* 屏幕亮度遮罩：覆盖整个阅读区域，模拟调节屏幕亮度 */}
       {brightness !== 1 && (
         <div
           className="fixed inset-0 z-30 pointer-events-none"
@@ -568,7 +681,6 @@ export function ReaderPage() {
         />
       )}
 
-      {/* 重新获取确认弹窗 */}
       {showRefetchDialog && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
@@ -579,9 +691,7 @@ export function ReaderPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-lg font-semibold mb-2">
-              {fetchError
-                ? t('抓取失败', 'Fetch Failed')
-                : t('重新获取文章', 'Refetch Article')}
+              {fetchError ? t('抓取失败', 'Fetch Failed') : t('重新获取文章', 'Refetch Article')}
             </h2>
             <p className="text-slate-600 dark:text-slate-400 mb-6">
               {fetchError
@@ -601,7 +711,7 @@ export function ReaderPage() {
                 onClick={handleRefetch}
                 className="flex-1 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors font-medium"
               >
-                {t('确定', 'OK')}
+                {t('确认', 'OK')}
               </button>
             </div>
           </div>

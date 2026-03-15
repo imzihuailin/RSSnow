@@ -1,5 +1,7 @@
 const FEEDS_KEY = 'rssnow_feeds'
 const ARTICLES_CACHE_KEY = 'rssnow_articles_cache'
+const FAVORITES_KEY = 'rssnow_favorites'
+const FAVORITE_ARTICLE_ID_PREFIX = 'favorite-link:'
 
 export interface Feed {
   id: string
@@ -23,6 +25,13 @@ export interface FeedWithArticles {
   feed: Feed
   articles: Article[]
   fetchedAt: number
+}
+
+export interface FavoriteArticleEntry {
+  feedId: string
+  link: string
+  title: string
+  favoritedAt: number
 }
 
 export function getFeeds(): Feed[] {
@@ -65,6 +74,8 @@ export function deleteFeed(feedId: string): void {
   } catch {
     // ignore
   }
+
+  deleteFavoritesForFeed(feedId)
 }
 
 export function getArticlesCache(feedId: string): FeedWithArticles | null {
@@ -86,6 +97,91 @@ export function setArticlesCache(feedId: string, data: Omit<FeedWithArticles, 'f
   } catch {
     // ignore
   }
+}
+
+function getFavorites(): FavoriteArticleEntry[] {
+  try {
+    const data = localStorage.getItem(FAVORITES_KEY)
+    const raw = data ? JSON.parse(data) : []
+    if (!Array.isArray(raw)) return []
+    return raw.filter((entry): entry is FavoriteArticleEntry => {
+      return (
+        !!entry &&
+        typeof entry.feedId === 'string' &&
+        typeof entry.link === 'string' &&
+        typeof entry.title === 'string' &&
+        typeof entry.favoritedAt === 'number'
+      )
+    })
+  } catch {
+    return []
+  }
+}
+
+function saveFavorites(entries: FavoriteArticleEntry[]): void {
+  localStorage.setItem(FAVORITES_KEY, JSON.stringify(entries))
+}
+
+export function getFavoritesByFeed(feedId: string): FavoriteArticleEntry[] {
+  return getFavorites()
+    .filter((entry) => entry.feedId === feedId)
+    .sort((a, b) => a.favoritedAt - b.favoritedAt)
+}
+
+export function getFavoriteEntry(feedId: string, link: string): FavoriteArticleEntry | null {
+  return getFavorites().find((entry) => entry.feedId === feedId && entry.link === link) ?? null
+}
+
+export function isFavoriteArticle(feedId: string, link: string): boolean {
+  return getFavoriteEntry(feedId, link) !== null
+}
+
+export function toggleFavoriteArticle(
+  feedId: string,
+  article: Pick<Article, 'title' | 'link'>
+): boolean {
+  try {
+    const favorites = getFavorites()
+    const existingIndex = favorites.findIndex(
+      (entry) => entry.feedId === feedId && entry.link === article.link
+    )
+
+    if (existingIndex >= 0) {
+      favorites.splice(existingIndex, 1)
+      saveFavorites(favorites)
+      return false
+    }
+
+    favorites.push({
+      feedId,
+      link: article.link,
+      title: article.title || 'Untitled',
+      favoritedAt: Date.now(),
+    })
+    saveFavorites(favorites)
+    return true
+  } catch {
+    return false
+  }
+}
+
+export function deleteFavoritesForFeed(feedId: string): void {
+  try {
+    const favorites = getFavorites().filter((entry) => entry.feedId !== feedId)
+    saveFavorites(favorites)
+  } catch {
+    // ignore
+  }
+}
+
+export function makeFavoriteArticleId(link: string): string {
+  return `${FAVORITE_ARTICLE_ID_PREFIX}${link}`
+}
+
+export function parseFavoriteArticleId(articleId: string): string | null {
+  return articleId.startsWith(FAVORITE_ARTICLE_ID_PREFIX)
+    ? articleId.slice(FAVORITE_ARTICLE_ID_PREFIX.length)
+    : null
 }
 
 const FETCHED_CONTENT_KEY = 'rssnow_fetched_content'

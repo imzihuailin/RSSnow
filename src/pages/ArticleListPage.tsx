@@ -1,20 +1,23 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import {
-  getFeedById,
-  getArticlesCache,
-  setArticlesCache,
-  deleteFeed,
-} from '../utils/storage'
+import { useNavigate, useParams } from 'react-router-dom'
+import { ArticleRow } from '../components/ArticleRow'
 import { fetchFeedWithArticles } from '../hooks/useRssParse'
+import { t, getLang } from '../i18n'
+import {
+  deleteFeed,
+  getArticlesCache,
+  getFavoritesByFeed,
+  getFeedById,
+  setArticlesCache,
+  toggleFavoriteArticle,
+} from '../utils/storage'
 import type { Article } from '../utils/storage'
 import {
-  getReadArticleIds,
-  getLatestUnfinishedArticle,
   getDismissedRecentUnfinished,
+  getLatestUnfinishedArticle,
+  getReadArticleIds,
   setDismissedRecentUnfinished,
 } from '../utils/readingProgress'
-import { t, getLang } from '../i18n'
 
 function formatDate(pubDate: string): string {
   if (!pubDate) return ''
@@ -42,11 +45,17 @@ export function ArticleListPage() {
   const [readIds, setReadIds] = useState<Set<string>>(() =>
     feedId ? getReadArticleIds(feedId) : new Set()
   )
+  const [favoriteLinks, setFavoriteLinks] = useState<Set<string>>(() =>
+    feedId ? new Set(getFavoritesByFeed(feedId).map((entry) => entry.link)) : new Set()
+  )
   const [dismissedFeedIdInSession, setDismissedFeedIdInSession] = useState<string | null>(null)
 
   useEffect(() => {
     if (!feedId) return
-    const refresh = () => setReadIds(getReadArticleIds(feedId))
+    const refresh = () => {
+      setReadIds(getReadArticleIds(feedId))
+      setFavoriteLinks(new Set(getFavoritesByFeed(feedId).map((entry) => entry.link)))
+    }
     document.addEventListener('visibilitychange', refresh)
     return () => document.removeEventListener('visibilitychange', refresh)
   }, [feedId])
@@ -117,6 +126,12 @@ export function ArticleListPage() {
   const handleArticleClick = (article: Article) => {
     if (feedId) sessionStorage.setItem(`articleListScroll_${feedId}`, String(window.scrollY))
     navigate(`/read/${feedId}/${encodeURIComponent(article.id)}`)
+  }
+
+  const handleToggleFavorite = (article: Article) => {
+    if (!feedId) return
+    toggleFavoriteArticle(feedId, article)
+    setFavoriteLinks(new Set(getFavoritesByFeed(feedId).map((entry) => entry.link)))
   }
 
   const recentUnfinishedData = useMemo(() => {
@@ -201,16 +216,16 @@ export function ArticleListPage() {
     return (
       <div className="min-h-screen bg-slate-100 dark:bg-slate-900 flex flex-col">
         <header className="sticky top-0 z-10 bg-white/80 dark:bg-slate-900/80 backdrop-blur border-b border-slate-200 dark:border-slate-700">
-          <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-4">
+          <div className="max-w-[52rem] mx-auto px-4 py-4 flex items-center gap-4">
             <button
               onClick={handleBack}
               className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
             >
-              {t('← 返回', '← Back')}
+              {t('返回', 'Back')}
             </button>
           </div>
         </header>
-        <main className="max-w-3xl mx-auto px-4 py-8 text-red-600 dark:text-red-400">{error}</main>
+        <main className="max-w-[52rem] mx-auto px-4 py-8 text-red-600 dark:text-red-400">{error}</main>
       </div>
     )
   }
@@ -218,17 +233,17 @@ export function ArticleListPage() {
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100">
       <header className="sticky top-0 z-10 bg-white/80 dark:bg-slate-900/80 backdrop-blur border-b border-slate-200 dark:border-slate-700">
-        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-4">
+        <div className="max-w-[52rem] mx-auto px-4 py-4 flex items-center gap-4">
           <button
             onClick={handleBack}
             className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 shrink-0"
           >
-            {t('← 返回', '← Back')}
+            {t('返回', 'Back')}
           </button>
           <h1 className="text-lg font-semibold truncate flex-1 min-w-0">{feedTitle}</h1>
           <button
             onClick={() => setConfirmDeleteOpen(true)}
-            className="shrink-0 px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-medium"
+            className="shrink-0 h-[46px] px-4 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-medium"
           >
             {t('删除', 'Delete')}
           </button>
@@ -268,22 +283,29 @@ export function ArticleListPage() {
         </div>
       )}
 
-      <main className="max-w-3xl mx-auto px-4 py-6">
-        {!loading && articles.length > 0 && (
-          <div className="mb-4">
+      <main className="max-w-[52rem] mx-auto px-4 py-6">
+        {!loading && (
+          <div className="mb-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 w-full">
             <input
               type="search"
               placeholder={t('搜索文章...', 'Search articles...')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="min-w-0 w-full px-4 py-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               aria-label={t('搜索文章', 'Search articles')}
             />
+            <button
+              type="button"
+              onClick={() => navigate(`/feed/${feedId}/favorites`)}
+              className="h-[46px] px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors font-medium whitespace-nowrap"
+            >
+              {t('我的收藏', 'My Favorites')}
+            </button>
           </div>
         )}
 
         {showRecentUnfinishedCard && recentUnfinishedData && (
-          <div className="mb-4 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50/80 dark:bg-blue-900/30 px-4 py-3">
+          <div className="mb-4 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50/80 dark:bg-blue-900/30 px-4 py-3.5">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-sm font-medium text-blue-700 dark:text-blue-300">
@@ -303,7 +325,7 @@ export function ArticleListPage() {
               <button
                 type="button"
                 onClick={handleDismissRecentUnfinished}
-                className="shrink-0 px-2.5 py-1.5 rounded-md text-xs font-medium bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700"
+                className="shrink-0 h-[46px] px-4 rounded-lg text-sm font-medium bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700"
               >
                 {t('关闭', 'Dismiss')}
               </button>
@@ -311,7 +333,7 @@ export function ArticleListPage() {
             <button
               type="button"
               onClick={() => handleArticleClick(recentUnfinishedData.article)}
-              className="mt-3 inline-flex items-center px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
+              className="mt-2.5 inline-flex items-center px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
             >
               {t('继续阅读', 'Continue')}
             </button>
@@ -330,35 +352,24 @@ export function ArticleListPage() {
           <ul className="space-y-2">
             {displayedArticles.map((article) => {
               const isRead = readIds.has(article.id)
+              const isFavorited = favoriteLinks.has(article.link)
               return (
                 <li key={article.id}>
-                  <button
-                    onClick={() => handleArticleClick(article)}
-                    className={`w-full text-left px-4 py-3 rounded-lg border transition-colors flex items-start gap-3 ${
-                      isRead
-                        ? 'bg-slate-50 dark:bg-slate-800/40 border-slate-200/60 dark:border-slate-700/40 hover:border-slate-300 dark:hover:border-slate-600'
-                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-blue-500 dark:hover:border-blue-500'
-                    }`}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <h3
-                        className={`font-medium line-clamp-2 ${
-                          isRead
-                            ? 'text-slate-400 dark:text-slate-500'
-                            : 'text-slate-900 dark:text-slate-100'
-                        }`}
-                      >
-                        {article.title || t('无标题', 'Untitled')}
-                      </h3>
-                      <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">{formatDate(article.pubDate)}</p>
-                      {article.description && !isRead && (
-                        <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 line-clamp-2">
-                          {article.description.replace(/<[^>]+>/g, '').slice(0, 100)}...
-                        </p>
-                      )}
-                    </div>
-                    {isRead && <span className="shrink-0 text-base mt-0.5">✓</span>}
-                  </button>
+                  <ArticleRow
+                    title={article.title || t('无标题', 'Untitled')}
+                    subtitle={formatDate(article.pubDate)}
+                    description={article.description?.replace(/<[^>]+>/g, '').slice(0, 100)}
+                    isRead={isRead}
+                    isFavorited={isFavorited}
+                    onOpen={() => handleArticleClick(article)}
+                    onToggleFavorite={() => handleToggleFavorite(article)}
+                    openLabel={t('打开文章', 'Open article')}
+                    favoriteLabel={
+                      isFavorited
+                        ? t('取消收藏', 'Remove favorite')
+                        : t('收藏文章', 'Favorite article')
+                    }
+                  />
                 </li>
               )
             })}

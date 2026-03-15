@@ -15,8 +15,8 @@ const FONT_OPTIONS = [
 const BG_OPTIONS = [
   { id: 'white', label: '白色', labelEn: 'White', bg: '#ffffff', text: '#1e293b' },
   { id: 'dark', label: '深色', labelEn: 'Dark', bg: '#000000', text: '#e8e8e8' },
-  { id: 'yellow', label: '黄色', labelEn: 'Yellow', bg: '#f5ebd0', text: '#5c4033' },
-  { id: 'green', label: '绿色', labelEn: 'Green', bg: '#ecfccb', text: '#14532d' },
+  { id: 'yellow', label: '米黄', labelEn: 'Yellow', bg: '#f5ebd0', text: '#5c4033' },
+  { id: 'green', label: '浅绿', labelEn: 'Green', bg: '#ecfccb', text: '#14532d' },
 ]
 
 type ExpandKey = 'progress' | 'font' | 'bg' | 'brightness' | null
@@ -86,9 +86,7 @@ export function ReaderToolbar({
         style={{ backgroundColor: `${bg.bg}F2` }}
       >
         <div className="max-w-3xl mx-auto px-4 py-3" style={{ color: bg.text }}>
-          {/* 模块图标行 */}
           <div className="flex items-stretch justify-center gap-8 sm:gap-12">
-            {/* 进度 - 迷你进度条样式 */}
             <button
               onClick={() => toggle('progress')}
               className={`flex flex-col items-center gap-1.5 p-2.5 rounded-lg transition-colors min-w-[3rem] ${
@@ -110,7 +108,6 @@ export function ReaderToolbar({
               <span className="text-[10px] leading-none">{t('进度', 'Progress')}</span>
             </button>
 
-            {/* 字体 - A */}
             <button
               onClick={() => toggle('font')}
               className={`flex flex-col items-center gap-1.5 p-2.5 rounded-lg transition-colors min-w-[3rem] ${
@@ -124,7 +121,6 @@ export function ReaderToolbar({
               <span className="text-[10px] leading-none">{t('字体', 'Font')}</span>
             </button>
 
-            {/* 背景 - B */}
             <button
               onClick={() => toggle('bg')}
               className={`flex flex-col items-center gap-1.5 p-2.5 rounded-lg transition-colors min-w-[3rem] ${
@@ -138,7 +134,6 @@ export function ReaderToolbar({
               <span className="text-[10px] leading-none">{t('背景', 'Background')}</span>
             </button>
 
-            {/* 亮度 - 小太阳 */}
             <button
               onClick={() => toggle('brightness')}
               className={`flex flex-col items-center gap-1.5 p-2.5 rounded-lg transition-colors min-w-[3rem] ${
@@ -147,7 +142,15 @@ export function ReaderToolbar({
               title={t('亮度', 'Brightness')}
             >
               <div className="h-8 flex items-center justify-center shrink-0">
-                <svg className="w-7 h-7 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg
+                  className="w-7 h-7 shrink-0"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
                   <circle cx="12" cy="12" r="5" />
                   <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
                 </svg>
@@ -156,120 +159,125 @@ export function ReaderToolbar({
             </button>
           </div>
 
-          {/* 展开内容区 - 仅在有展开时渲染 */}
           {expanded && (
-          <div className={`mt-3 pt-3 border-t ${borderColor}`}>
-            {expanded === 'progress' && (
-              <div className="flex items-center gap-3">
-                <span className="text-xs opacity-75 shrink-0 w-10">{t('进度', 'Progress')}</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  step="0.1"
-                  value={progress}
-                  onChange={handleProgressChange}
-                  className={SLIDER_STYLES}
-                />
-                <span className="text-xs opacity-75 shrink-0 w-10">{Math.round(progress)}%</span>
-              </div>
-            )}
-
-            {expanded === 'font' && (
-              <div className="space-y-3">
+            <div className={`mt-3 pt-3 border-t ${borderColor}`}>
+              {expanded === 'progress' && (
                 <div className="flex items-center gap-3">
-                  <span className="text-xs opacity-75 shrink-0 w-10">{t('字号', 'Size')}</span>
-                  <input
-                    type="range"
-                    min="14"
-                    max="24"
-                    step="1"
-                    value={fontSize}
-                    onChange={(e) => onFontSizeChange(parseInt(e.target.value, 10))}
-                    className={SLIDER_STYLES}
-                  />
-                  <span className="text-xs opacity-75 shrink-0 w-10">{fontSize}px</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs opacity-75 shrink-0 w-10">{t('行距', 'Spacing')}</span>
-                  <input
-                    type="range"
-                    min="1.2"
-                    max="2.2"
-                    step="0.1"
-                    value={lineHeight}
-                    onChange={(e) => onLineHeightChange(parseFloat(e.target.value))}
-                    className={SLIDER_STYLES}
-                  />
-                  <span className="text-xs opacity-75 shrink-0 w-10">{lineHeight.toFixed(1)}</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs opacity-75 shrink-0 w-10">{t('边距', 'Margin')}</span>
+                  <span className="text-xs opacity-75 shrink-0 w-10">{t('进度', 'Progress')}</span>
                   <input
                     type="range"
                     min="0"
-                    max="30"
-                    step="1"
-                    value={pagePadding}
-                    onChange={(e) => onPagePaddingChange(parseInt(e.target.value, 10))}
+                    max="100"
+                    step="0.1"
+                    value={progress}
+                    onChange={handleProgressChange}
                     className={SLIDER_STYLES}
                   />
-                  <span className="text-xs opacity-75 shrink-0 w-10">{pagePadding}%</span>
+                  <span className="text-xs opacity-75 shrink-0 w-10">{Math.round(progress)}%</span>
                 </div>
+              )}
+
+              {expanded === 'font' && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs opacity-75 shrink-0 w-10">{t('字号', 'Size')}</span>
+                    <input
+                      type="range"
+                      min="14"
+                      max="24"
+                      step="1"
+                      value={fontSize}
+                      onChange={(e) => onFontSizeChange(parseInt(e.target.value, 10))}
+                      className={SLIDER_STYLES}
+                    />
+                    <span className="text-xs opacity-75 shrink-0 w-10">{fontSize}px</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs opacity-75 shrink-0 w-10">{t('行距', 'Spacing')}</span>
+                    <input
+                      type="range"
+                      min="1.2"
+                      max="2.2"
+                      step="0.1"
+                      value={lineHeight}
+                      onChange={(e) => onLineHeightChange(parseFloat(e.target.value))}
+                      className={SLIDER_STYLES}
+                    />
+                    <span className="text-xs opacity-75 shrink-0 w-10">{lineHeight.toFixed(1)}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs opacity-75 shrink-0 w-10">{t('页边距', 'Margin')}</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="30"
+                      step="1"
+                      value={pagePadding}
+                      onChange={(e) => onPagePaddingChange(parseInt(e.target.value, 10))}
+                      className={SLIDER_STYLES}
+                    />
+                    <span className="text-xs opacity-75 shrink-0 w-10">{pagePadding}%</span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs opacity-75 shrink-0">{t('字体', 'Font')}</span>
+                    {FONT_OPTIONS.map((f) => (
+                      <button
+                        key={f.id}
+                        onClick={() => onFontChange(f.id)}
+                        className={`px-3 py-1.5 rounded text-sm transition-colors ${
+                          fontId === f.id
+                            ? 'bg-blue-500 text-white'
+                            : isDark
+                              ? 'bg-white/20 text-current hover:bg-white/30'
+                              : 'bg-black/10 text-current hover:bg-black/15'
+                        }`}
+                      >
+                        {t(f.label, f.labelEn)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {expanded === 'bg' && (
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs opacity-75 shrink-0">{t('字体', 'Font')}</span>
-                  {FONT_OPTIONS.map((f) => (
+                  <span className="text-xs opacity-75 shrink-0">{t('主题', 'Theme')}</span>
+                  {BG_OPTIONS.map((b) => (
                     <button
-                      key={f.id}
-                      onClick={() => onFontChange(f.id)}
-                      className={`px-3 py-1.5 rounded text-sm transition-colors ${
-                        fontId === f.id
-                          ? 'bg-blue-500 text-white'
-                          : isDark ? 'bg-white/20 text-current hover:bg-white/30' : 'bg-black/10 text-current hover:bg-black/15'
+                      key={b.id}
+                      onClick={() => onBgChange(b.id)}
+                      className={`w-8 h-8 rounded-full border-2 transition-transform hover:scale-110 ${
+                        bgId === b.id
+                          ? 'border-blue-500 scale-110'
+                          : isDark
+                            ? 'border-white/30'
+                            : 'border-black/20'
                       }`}
-                    >
-                      {t(f.label, f.labelEn)}
-                    </button>
+                      style={{ backgroundColor: b.bg }}
+                      title={t(b.label, b.labelEn)}
+                    />
                   ))}
                 </div>
-              </div>
-            )}
+              )}
 
-            {expanded === 'bg' && (
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs opacity-75 shrink-0">{t('背景', 'Theme')}</span>
-                {BG_OPTIONS.map((b) => (
-                  <button
-                    key={b.id}
-                    onClick={() => onBgChange(b.id)}
-                    className={`w-8 h-8 rounded-full border-2 transition-transform hover:scale-110 ${
-                      bgId === b.id ? 'border-blue-500 scale-110' : isDark ? 'border-white/30' : 'border-black/20'
-                    }`}
-                    style={{ backgroundColor: b.bg }}
-                    title={t(b.label, b.labelEn)}
+              {expanded === 'brightness' && (
+                <div className="flex items-center gap-3">
+                  <span className="text-xs opacity-75 shrink-0 w-10">{t('亮度', 'Brightness')}</span>
+                  <input
+                    type="range"
+                    min="0.5"
+                    max="1.5"
+                    step="0.05"
+                    value={brightness}
+                    onChange={(e) => onBrightnessChange(parseFloat(e.target.value))}
+                    className={SLIDER_STYLES}
                   />
-                ))}
-              </div>
-            )}
-
-            {expanded === 'brightness' && (
-              <div className="flex items-center gap-3">
-                <span className="text-xs opacity-75 shrink-0 w-10">{t('亮度', 'Brightness')}</span>
-                <input
-                  type="range"
-                  min="0.5"
-                  max="1.5"
-                  step="0.05"
-                  value={brightness}
-                  onChange={(e) => onBrightnessChange(parseFloat(e.target.value))}
-                  className={SLIDER_STYLES}
-                />
-                <span className="text-xs opacity-75 shrink-0 w-10">
-                  {Math.round(brightness * 100)}%
-                </span>
-              </div>
-            )}
-          </div>
+                  <span className="text-xs opacity-75 shrink-0 w-10">
+                    {Math.round(brightness * 100)}%
+                  </span>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
