@@ -24,6 +24,6 @@ dist-ssr
 *.sw?
 # Agents instructions
 *claude.md
-*AGENT.md
+*AGENTS.md
 *.claude/
 
