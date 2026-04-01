@@ -1,3 +1,9 @@
+import {
+  isReaderBackgroundVariantId,
+  isReaderColorId,
+  resolveLegacyBackgroundId,
+} from './readerBackgrounds'
+
 const READING_PREFERENCES_KEY = 'rssnow_reading_preferences'
 
 export interface ReadingPreferences {
@@ -5,7 +11,8 @@ export interface ReadingPreferences {
   fontSize: number
   lineHeight: number
   pagePadding: number
-  bgId: string
+  colorId: string
+  backgroundVariantId: string
   brightness: number
 }
 
@@ -14,7 +21,8 @@ const DEFAULTS: ReadingPreferences = {
   fontSize: 18,
   lineHeight: 1.6,
   pagePadding: 15,
-  bgId: 'white',
+  colorId: 'white',
+  backgroundVariantId: 'pure',
   brightness: 1,
 }
 
@@ -23,12 +31,16 @@ export function getReadingPreferences(): ReadingPreferences {
     const data = localStorage.getItem(READING_PREFERENCES_KEY)
     if (!data) return { ...DEFAULTS }
     const raw = JSON.parse(data)
+    const legacy = resolveLegacyBackgroundId(typeof raw.bgId === 'string' ? raw.bgId : null)
     return {
       fontId: typeof raw.fontId === 'string' ? raw.fontId : DEFAULTS.fontId,
       fontSize: typeof raw.fontSize === 'number' ? Math.max(14, Math.min(24, raw.fontSize)) : DEFAULTS.fontSize,
       lineHeight: typeof raw.lineHeight === 'number' ? Math.max(1.2, Math.min(2.2, raw.lineHeight)) : DEFAULTS.lineHeight,
       pagePadding: typeof raw.pagePadding === 'number' ? Math.max(0, Math.min(30, raw.pagePadding)) : DEFAULTS.pagePadding,
-      bgId: typeof raw.bgId === 'string' ? raw.bgId : DEFAULTS.bgId,
+      colorId: isReaderColorId(raw.colorId) ? raw.colorId : legacy.colorId,
+      backgroundVariantId: isReaderBackgroundVariantId(raw.backgroundVariantId)
+        ? raw.backgroundVariantId
+        : legacy.backgroundVariantId,
       brightness: typeof raw.brightness === 'number' ? Math.max(0.5, Math.min(1.5, raw.brightness)) : DEFAULTS.brightness,
     }
   } catch {

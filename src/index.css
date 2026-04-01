@@ -20,6 +20,10 @@ body {
   word-break: break-word;
 }
 
+.reader-content a {
+  color: var(--reader-link-color, inherit) !important;
+}
+
 .reader-content img,
 .reader-content video,
 .reader-content canvas,

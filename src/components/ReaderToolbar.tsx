@@ -1,5 +1,12 @@
 import { useState } from 'react'
 import { t } from '../i18n'
+import {
+  getReaderBackground,
+  READER_BACKGROUND_VARIANTS,
+  READER_COLOR_OPTIONS,
+  type ReaderBackgroundVariantId,
+  type ReaderColorId,
+} from '../utils/readerBackgrounds'
 
 const FONT_OPTIONS = [
   { id: 'serif', label: '宋体', labelEn: 'Serif', fontFamily: '"SimSun", "Songti SC", serif' },
@@ -10,13 +17,6 @@ const FONT_OPTIONS = [
   { id: 'times', label: 'Times New Roman', labelEn: 'Times New Roman', fontFamily: '"Times New Roman", Times, serif' },
   { id: 'arial', label: 'Arial', labelEn: 'Arial', fontFamily: 'Arial, Helvetica, sans-serif' },
   { id: 'verdana', label: 'Verdana', labelEn: 'Verdana', fontFamily: 'Verdana, Geneva, sans-serif' },
-]
-
-const BG_OPTIONS = [
-  { id: 'white', label: '白色', labelEn: 'White', bg: '#ffffff', text: '#1e293b' },
-  { id: 'dark', label: '深色', labelEn: 'Dark', bg: '#000000', text: '#e8e8e8' },
-  { id: 'yellow', label: '米黄', labelEn: 'Yellow', bg: '#f5ebd0', text: '#5c4033' },
-  { id: 'green', label: '浅绿', labelEn: 'Green', bg: '#ecfccb', text: '#14532d' },
 ]
 
 type ExpandKey = 'progress' | 'font' | 'bg' | 'brightness' | null
@@ -38,8 +38,10 @@ interface ReaderToolbarProps {
   onPagePaddingChange: (value: number) => void
   fontId: string
   onFontChange: (id: string) => void
-  bgId: string
-  onBgChange: (id: string) => void
+  colorId: ReaderColorId
+  onColorChange: (id: ReaderColorId) => void
+  backgroundVariantId: ReaderBackgroundVariantId
+  onBackgroundVariantChange: (id: ReaderBackgroundVariantId) => void
 }
 
 export function ReaderToolbar({
@@ -56,12 +58,13 @@ export function ReaderToolbar({
   onPagePaddingChange,
   fontId,
   onFontChange,
-  bgId,
-  onBgChange,
+  colorId,
+  onColorChange,
+  backgroundVariantId,
+  onBackgroundVariantChange,
 }: ReaderToolbarProps) {
   const [expanded, setExpanded] = useState<ExpandKey>(null)
-  const bg = BG_OPTIONS.find((b) => b.id === bgId) ?? BG_OPTIONS[0]
-  const isDark = bgId === 'dark'
+  const currentBackground = getReaderBackground(colorId, backgroundVariantId)
 
   const toggle = (key: ExpandKey) => setExpanded((v) => (v === key ? null : key))
 
@@ -70,9 +73,8 @@ export function ReaderToolbar({
     if (!isNaN(v)) onProgressChange(v)
   }
 
-  const hoverClass = isDark ? 'hover:bg-white/10' : 'hover:bg-black/5'
+  const hoverClass = currentBackground.isDarkScheme ? 'hover:bg-white/10' : 'hover:bg-black/5'
   const activeClass = 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
-  const borderColor = isDark ? 'border-white/20' : 'border-black/10'
 
   return (
     <div
@@ -82,10 +84,13 @@ export function ReaderToolbar({
       onClick={(e) => e.stopPropagation()}
     >
       <div
-        className={`backdrop-blur border-t shadow-[0_-4px_20px_rgba(0,0,0,0.08)] ${borderColor}`}
-        style={{ backgroundColor: `${bg.bg}F2` }}
+        className="backdrop-blur border-t shadow-[0_-4px_20px_rgba(0,0,0,0.08)]"
+        style={{
+          backgroundColor: currentBackground.surfaceOverlay,
+          borderColor: currentBackground.borderColor,
+        }}
       >
-        <div className="max-w-3xl mx-auto px-4 py-3" style={{ color: bg.text }}>
+        <div className="max-w-4xl mx-auto px-4 py-3" style={{ color: currentBackground.textColor }}>
           <div className="flex items-stretch justify-center gap-8 sm:gap-12">
             <button
               onClick={() => toggle('progress')}
@@ -97,7 +102,7 @@ export function ReaderToolbar({
               <div className="h-8 flex items-center justify-center shrink-0">
                 <div
                   className="relative w-11 h-2.5 rounded-full overflow-visible"
-                  style={{ backgroundColor: `${bg.text}30` }}
+                  style={{ backgroundColor: `${currentBackground.textColor}30` }}
                 >
                   <div
                     className="absolute top-1/2 w-3 h-3 rounded-full bg-blue-500 shadow-sm -translate-y-1/2 -translate-x-1/2"
@@ -160,7 +165,7 @@ export function ReaderToolbar({
           </div>
 
           {expanded && (
-            <div className={`mt-3 pt-3 border-t ${borderColor}`}>
+            <div className="mt-3 pt-3 border-t" style={{ borderColor: currentBackground.borderColor }}>
               {expanded === 'progress' && (
                 <div className="flex items-center gap-3">
                   <span className="text-xs opacity-75 shrink-0 w-10">{t('进度', 'Progress')}</span>
@@ -227,9 +232,9 @@ export function ReaderToolbar({
                         className={`px-3 py-1.5 rounded text-sm transition-colors ${
                           fontId === f.id
                             ? 'bg-blue-500 text-white'
-                            : isDark
-                              ? 'bg-white/20 text-current hover:bg-white/30'
-                              : 'bg-black/10 text-current hover:bg-black/15'
+                            : currentBackground.isDarkScheme
+                              ? 'bg-white/15 text-current hover:bg-white/25'
+                              : 'bg-black/8 text-current hover:bg-black/12'
                         }`}
                       >
                         {t(f.label, f.labelEn)}
@@ -240,23 +245,79 @@ export function ReaderToolbar({
               )}
 
               {expanded === 'bg' && (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs opacity-75 shrink-0">{t('主题', 'Theme')}</span>
-                  {BG_OPTIONS.map((b) => (
-                    <button
-                      key={b.id}
-                      onClick={() => onBgChange(b.id)}
-                      className={`w-8 h-8 rounded-full border-2 transition-transform hover:scale-110 ${
-                        bgId === b.id
-                          ? 'border-blue-500 scale-110'
-                          : isDark
-                            ? 'border-white/30'
-                            : 'border-black/20'
-                      }`}
-                      style={{ backgroundColor: b.bg }}
-                      title={t(b.label, b.labelEn)}
-                    />
-                  ))}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="text-xs opacity-75">{t('颜色', 'Color')}</div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {READER_COLOR_OPTIONS.map((option) => (
+                        <button
+                          key={option.id}
+                          onClick={() => onColorChange(option.id)}
+                          className={`relative overflow-hidden rounded-[1.5rem] border transition-all duration-200 h-16 ${
+                            colorId === option.id ? 'scale-[1.02] shadow-lg' : 'hover:-translate-y-0.5'
+                          }`}
+                          style={{
+                            borderColor: colorId === option.id ? option.previewBorder : currentBackground.borderColor,
+                            boxShadow:
+                              colorId === option.id ? `0 0 0 2px ${option.previewBorder}` : 'none',
+                            backgroundImage: `url("${option.previewImage}")`,
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center center',
+                          }}
+                          title={t(option.label, option.labelEn)}
+                        >
+                          <span
+                            className="absolute inset-0"
+                            style={{ backgroundColor: option.overlayTint }}
+                          />
+                          <span className="relative z-10 text-sm font-medium">
+                            {t(option.label, option.labelEn)}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="text-xs opacity-75">{t('背景', 'Background')}</div>
+                    <div className="grid grid-cols-3 gap-3">
+                      {READER_BACKGROUND_VARIANTS.map((variant) => {
+                        const preview = getReaderBackground(colorId, variant.id)
+                        const selected = backgroundVariantId === variant.id
+                        return (
+                          <button
+                            key={variant.id}
+                            onClick={() => onBackgroundVariantChange(variant.id)}
+                            className={`relative overflow-hidden rounded-[1.5rem] border transition-all duration-200 h-24 ${
+                              selected ? 'scale-[1.02] shadow-lg' : 'hover:-translate-y-0.5'
+                            }`}
+                            style={{
+                              borderColor: selected ? '#3b82f6' : currentBackground.borderColor,
+                              boxShadow: selected ? '0 0 0 2px rgba(59,130,246,0.7)' : 'none',
+                              backgroundImage: `url("${preview.image}")`,
+                              backgroundSize: 'cover',
+                              backgroundPosition: preview.previewPosition,
+                            }}
+                            title={t(variant.label, variant.labelEn)}
+                          >
+                            <span
+                              className="absolute inset-0"
+                              style={{
+                                backgroundColor: selected
+                                  ? 'rgba(59,130,246,0.12)'
+                                  : preview.isDarkScheme
+                                    ? 'rgba(5,10,18,0.18)'
+                                    : 'rgba(255,255,255,0.1)',
+                              }}
+                            />
+                            <span className="absolute left-3 bottom-3 text-xs font-medium">
+                              {t(variant.label, variant.labelEn)}
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -285,4 +346,4 @@ export function ReaderToolbar({
   )
 }
 
-export { FONT_OPTIONS, BG_OPTIONS }
+export { FONT_OPTIONS }

@@ -20,8 +20,14 @@ import {
 } from '../utils/readingProgress'
 import { getReadingPreferences, saveReadingPreferences } from '../utils/preferences'
 import { fetchArticleContent } from '../hooks/useFetchArticle'
-import { ReaderToolbar, FONT_OPTIONS, BG_OPTIONS } from '../components/ReaderToolbar'
+import { ReaderToolbar, FONT_OPTIONS } from '../components/ReaderToolbar'
 import { t } from '../i18n'
+import {
+  getReaderBackground,
+  type ReaderBackground,
+  type ReaderBackgroundVariantId,
+  type ReaderColorId,
+} from '../utils/readerBackgrounds'
 
 const DEBOUNCE_MS = 300
 const DOUBLE_CLICK_MS = 350
@@ -108,6 +114,16 @@ function buildFallbackArticle(link: string, title?: string): Article {
   }
 }
 
+function getBackgroundLayerStyle(background: ReaderBackground): React.CSSProperties {
+  return {
+    backgroundColor: background.fallbackColor,
+    backgroundImage: `url("${background.image}")`,
+    backgroundPosition: background.pagePosition,
+    backgroundRepeat: 'no-repeat',
+    backgroundSize: 'cover',
+  }
+}
+
 export function ReaderPage() {
   const { feedId, articleId } = useParams<{ feedId: string; articleId: string }>()
   const navigate = useNavigate()
@@ -138,7 +154,10 @@ export function ReaderPage() {
   const [fontSize, setFontSize] = useState(prefs.fontSize)
   const [lineHeight, setLineHeight] = useState(prefs.lineHeight)
   const [pagePadding, setPagePadding] = useState(prefs.pagePadding)
-  const [bgId, setBgId] = useState(prefs.bgId)
+  const [colorId, setColorId] = useState<ReaderColorId>(prefs.colorId as ReaderColorId)
+  const [backgroundVariantId, setBackgroundVariantId] = useState<ReaderBackgroundVariantId>(
+    prefs.backgroundVariantId as ReaderBackgroundVariantId
+  )
   const [brightness, setBrightness] = useState(prefs.brightness)
 
   const decodedId = articleId ? decodeURIComponent(articleId) : ''
@@ -235,7 +254,7 @@ export function ReaderPage() {
   const usableFetchedContent = hasRenderableFetchedContent ? fetchedContent : null
 
   const font = FONT_OPTIONS.find((f) => f.id === fontId) ?? FONT_OPTIONS[0]
-  const bg = BG_OPTIONS.find((b) => b.id === bgId) ?? BG_OPTIONS[0]
+  const background = getReaderBackground(colorId, backgroundVariantId)
 
   useEffect(() => {
     feedIdRef.current = feedId ?? ''
@@ -328,8 +347,16 @@ export function ReaderPage() {
   }, [updateProgress, article, feedId, readingKey])
 
   useEffect(() => {
-    saveReadingPreferences({ fontId, fontSize, lineHeight, pagePadding, bgId, brightness })
-  }, [fontId, fontSize, lineHeight, pagePadding, bgId, brightness])
+    saveReadingPreferences({
+      fontId,
+      fontSize,
+      lineHeight,
+      pagePadding,
+      colorId,
+      backgroundVariantId,
+      brightness,
+    })
+  }, [fontId, fontSize, lineHeight, pagePadding, colorId, backgroundVariantId, brightness])
 
   const contentReady = !!article && (hasRenderableArticleContent || usableFetchedContent || fetchError)
   useEffect(() => {
@@ -489,18 +516,27 @@ export function ReaderPage() {
     navigate(`/feed/${feedId}`)
   }
 
+  const contentSurfaceStyle: React.CSSProperties = {
+    maxWidth: pagePadding > 0 ? `${100 - pagePadding * 2}%` : '100%',
+    color: background.textColor,
+    textShadow: background.isDarkScheme ? '0 1px 2px rgba(0,0,0,0.22)' : 'none',
+    ['--reader-link-color' as string]: background.linkColor,
+  }
+
   if (!article) {
     return (
-      <div
-        className="fixed inset-0 flex items-center justify-center"
-        style={{ backgroundColor: bg.bg, color: bg.text }}
-      >
-        <div className="text-center">
+      <div className="fixed inset-0 flex items-center justify-center overflow-hidden" style={{ color: background.textColor }}>
+        <div className="absolute inset-0" style={getBackgroundLayerStyle(background)} />
+        <div className="absolute inset-0" style={{ backgroundColor: background.pageScrim }} />
+        <div
+          className="relative z-10 text-center rounded-3xl px-8 py-10 backdrop-blur-md"
+          style={{
+            backgroundColor: background.surfaceOverlay,
+            border: `1px solid ${background.borderColor}`,
+          }}
+        >
           <p className="mb-4">{t('文章未找到', 'Article not found')}</p>
-          <button
-            onClick={handleBack}
-            className="text-blue-600 dark:text-blue-400 hover:underline"
-          >
+          <button onClick={handleBack} className="hover:underline" style={{ color: background.linkColor }}>
             {t('返回列表', 'Back to list')}
           </button>
         </div>
@@ -509,62 +545,73 @@ export function ReaderPage() {
   }
 
   return (
-    <div
-      className="fixed inset-0 overflow-hidden flex flex-col"
-      style={{ backgroundColor: bg.bg, color: bg.text }}
-    >
+    <div className="fixed inset-0 overflow-hidden flex flex-col" style={{ color: background.textColor }}>
+      <div className="absolute inset-0" style={getBackgroundLayerStyle(background)} />
+      <div className="absolute inset-0" style={{ backgroundColor: background.pageScrim }} />
+
       <div
-        className={`absolute top-0 left-0 right-0 z-40 flex items-center px-4 py-3 transition-transform duration-300 ease-out ${
-          toolbarVisible ? 'translate-y-0' : '-translate-y-full'
+        className={`absolute top-0 left-0 right-0 z-40 px-4 py-3 transition-transform duration-300 ease-out ${
+          toolbarVisible ? 'translate-y-0' : '-translate-y-full pointer-events-none'
         }`}
       >
-        <button
-          onClick={handleBack}
-          className="px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-        >
-          {t('返回', 'Back')}
-        </button>
-      </div>
-
-      <div className="fixed top-3 right-3 z-50 flex items-center gap-2.5">
-        <button
-          onClick={handleToggleFavorite}
-          className={`p-2 rounded-lg transition-colors shadow-lg ${
-            isFavorited ? 'text-amber-500' : 'hover:bg-white/10 bg-white/20'
-          }`}
-          style={{
-            backgroundColor: bgId === 'dark' ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.08)',
-          }}
-          title={isFavorited ? t('鍙栨秷鏀惰棌', 'Remove favorite') : t('鏀惰棌', 'Favorite')}
-          aria-pressed={isFavorited}
-        >
-          <StarIcon filled={isFavorited} />
-        </button>
-        <button
-          onClick={() => setShowRefetchDialog(true)}
-          disabled={fetching}
-          className={`p-2 rounded-lg transition-colors shadow-lg ${
-            fetching ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white/10 bg-white/20'
-          }`}
-          style={{
-            backgroundColor: bgId === 'dark' ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.08)',
-          }}
-          title={t('重新获取', 'Refetch')}
-        >
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+        <div className="flex items-center justify-between gap-3">
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              handleBack()
+            }}
+            className="px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors shadow-lg pointer-events-auto"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-            />
-          </svg>
-        </button>
+            {t('\u8fd4\u56de', 'Back')}
+          </button>
+
+          <div className="flex items-center gap-2.5 pointer-events-auto">
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                handleToggleFavorite()
+              }}
+              className={`p-2 rounded-lg transition-colors shadow-lg ${
+                isFavorited ? 'text-amber-500' : 'hover:bg-white/10 bg-white/20'
+              }`}
+              style={{ backgroundColor: background.surfaceOverlay, color: background.textColor }}
+              title={
+                isFavorited
+                  ? t('\u53d6\u6d88\u6536\u85cf', 'Remove favorite')
+                  : t('\u6536\u85cf', 'Favorite')
+              }
+              aria-pressed={isFavorited}
+            >
+              <StarIcon filled={isFavorited} />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowRefetchDialog(true)
+              }}
+              disabled={fetching}
+              className={`p-2 rounded-lg transition-colors shadow-lg ${
+                fetching ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white/10 bg-white/20'
+              }`}
+              style={{ backgroundColor: background.surfaceOverlay, color: background.textColor }}
+              title={t('\u91cd\u65b0\u6293\u53d6', 'Refetch')}
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
       </div>
 
       <div
@@ -577,12 +624,9 @@ export function ReaderPage() {
           }
           lastContentClickRef.current = 0
         }}
-        className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain pt-14 pb-8 px-3 sm:px-4 cursor-default"
+        className="relative z-10 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain pt-14 pb-8 px-3 sm:px-4 cursor-default"
       >
-        <div
-          className="mx-auto"
-          style={{ maxWidth: pagePadding > 0 ? `${100 - pagePadding * 2}%` : '100%' }}
-        >
+        <div className="mx-auto" style={contentSurfaceStyle}>
           <h1
             className="font-bold mb-6"
             style={{ fontFamily: font.fontFamily, fontSize: `${fontSize * 1.25}px`, lineHeight }}
@@ -590,13 +634,17 @@ export function ReaderPage() {
             {article.title}
           </h1>
           {fetching ? (
-            <p className="opacity-80 py-8">{t('抓取原文中...', 'Fetching article...')}</p>
+            <p className="opacity-80 py-8">{t('正在抓取正文...', 'Fetching article...')}</p>
           ) : hasRenderableArticleContent || usableFetchedContent ? (
             <article
-              className={`reader-content [&_img]:max-w-full [&_a]:hover:underline [&_p]:my-4 [&_h1]:text-2xl [&_h2]:text-xl [&_h3]:text-lg [&_ul]:my-2 [&_ol]:my-2 ${
-                bgId === 'dark' ? '[&_a]:text-sky-300' : '[&_a]:text-blue-600'
-              }`}
-              style={{ fontFamily: font.fontFamily, fontSize: `${fontSize}px`, lineHeight }}
+              className="reader-content [&_img]:max-w-full [&_a]:hover:underline [&_p]:my-4 [&_h1]:text-2xl [&_h2]:text-xl [&_h3]:text-lg [&_ul]:my-2 [&_ol]:my-2"
+              style={{
+                fontFamily: font.fontFamily,
+                fontSize: `${fontSize}px`,
+                lineHeight,
+                color: background.textColor,
+                ['--reader-link-color' as string]: background.linkColor,
+              }}
               dangerouslySetInnerHTML={{
                 __html:
                   (hasRenderableArticleContent ? articleContent : '') ||
@@ -611,24 +659,23 @@ export function ReaderPage() {
           ) : (
             <p className="opacity-80">
               {t(
-                '原文抓取失败，请退出后重试，或在新窗口打开原文',
+                '鍘熸枃鎶撳彇澶辫触锛岃閫€鍑哄悗閲嶈瘯锛屾垨鍦ㄦ柊绐楀彛鎵撳紑鍘熸枃',
                 'Failed to fetch article. Please try again or open in a new tab.'
               )}
             </p>
           )}
           <div
             className="mt-8 pt-4 border-t flex items-center justify-between gap-4"
-            style={{ borderColor: bg.text }}
+            style={{ borderColor: background.borderColor }}
           >
             <a
               href={article.link}
               target="_blank"
               rel="noopener noreferrer"
-              className={`opacity-35 ${
-                bgId === 'dark' ? 'text-sky-300 hover:underline' : 'text-blue-600 hover:underline'
-              }`}
+              className="opacity-50 hover:underline"
+              style={{ color: background.linkColor }}
             >
-              {t('在新窗口打开原文 →', 'Open original →')}
+              {t('在新窗口打开原文 ->', 'Open original ->')}
             </a>
             <button
               onClick={(e) => {
@@ -641,7 +688,7 @@ export function ReaderPage() {
                   : 'bg-emerald-600 text-white hover:bg-emerald-700'
               }`}
             >
-              {isRead ? t('✓ 已标记', '✓ Read') : t('标记已读', 'Mark as read')}
+              {isRead ? t('已标记已读', 'Read') : t('标记已读', 'Mark as read')}
             </button>
           </div>
         </div>
@@ -661,8 +708,9 @@ export function ReaderPage() {
           }}
           className="px-4 py-2 rounded-full backdrop-blur-md shadow-lg text-sm font-medium transition-colors"
           style={{
-            backgroundColor: bgId === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
-            color: bg.text,
+            backgroundColor: background.surfaceOverlay,
+            color: background.textColor,
+            border: `1px solid ${background.borderColor}`,
           }}
         >
           {t('返回原进度', 'Return to position')}
@@ -687,13 +735,18 @@ export function ReaderPage() {
           onClick={() => setShowRefetchDialog(false)}
         >
           <div
-            className="w-full max-w-md mx-4 bg-white dark:bg-slate-800 rounded-xl shadow-xl p-6"
+            className="w-full max-w-md mx-4 rounded-xl shadow-xl p-6"
+            style={{
+              backgroundColor: background.surfaceOverlay,
+              color: background.textColor,
+              border: `1px solid ${background.borderColor}`,
+            }}
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-lg font-semibold mb-2">
               {fetchError ? t('抓取失败', 'Fetch Failed') : t('重新获取文章', 'Refetch Article')}
             </h2>
-            <p className="text-slate-600 dark:text-slate-400 mb-6">
+            <p className="mb-6 opacity-80">
               {fetchError
                 ? t('检测到抓取错误，是否重新获取？', 'Fetch error detected. Refetch now?')
                 : t('确定要重新获取这篇文章吗？', 'Are you sure you want to refetch this article?')}
@@ -702,16 +755,17 @@ export function ReaderPage() {
               <button
                 type="button"
                 onClick={() => setShowRefetchDialog(false)}
-                className="flex-1 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                className="flex-1 px-4 py-2 rounded-lg transition-colors"
+                style={{ border: `1px solid ${background.borderColor}` }}
               >
-                {t('取消', 'Cancel')}
+                {t('鍙栨秷', 'Cancel')}
               </button>
               <button
                 type="button"
                 onClick={handleRefetch}
                 className="flex-1 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors font-medium"
               >
-                {t('确认', 'OK')}
+                {t('纭', 'OK')}
               </button>
             </div>
           </div>
@@ -732,8 +786,10 @@ export function ReaderPage() {
         onPagePaddingChange={setPagePadding}
         fontId={fontId}
         onFontChange={setFontId}
-        bgId={bgId}
-        onBgChange={setBgId}
+        colorId={colorId}
+        onColorChange={setColorId}
+        backgroundVariantId={backgroundVariantId}
+        onBackgroundVariantChange={setBackgroundVariantId}
       />
     </div>
   )
