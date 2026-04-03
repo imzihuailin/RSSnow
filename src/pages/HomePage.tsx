@@ -23,6 +23,7 @@ export function HomePage() {
       feedUrl: url,
       description: parsed.description,
       itemCount: parsed.itemCount,
+      refreshMode: 'focus',
     })
     setFeeds(getFeeds())
   }

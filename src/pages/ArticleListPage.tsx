@@ -10,8 +10,9 @@ import {
   getFeedById,
   setArticlesCache,
   toggleFavoriteArticle,
+  updateFeed,
 } from '../utils/storage'
-import type { Article } from '../utils/storage'
+import type { Article, Feed, FeedRefreshMode } from '../utils/storage'
 import {
   getDismissedRecentUnfinished,
   getLatestUnfinishedArticle,
@@ -32,11 +33,55 @@ function formatDate(pubDate: string): string {
   })
 }
 
+function sortArticlesByPubDate(articles: Article[]): Article[] {
+  return [...articles].sort((a, b) => {
+    const da = new Date(a.pubDate).getTime()
+    const db = new Date(b.pubDate).getTime()
+    return db - da
+  })
+}
+
+function hasArticleListChanged(prev: Article[], next: Article[]): boolean {
+  if (prev.length !== next.length) return true
+  for (let i = 0; i < prev.length; i += 1) {
+    if (
+      prev[i].id !== next[i].id ||
+      prev[i].link !== next[i].link ||
+      prev[i].pubDate !== next[i].pubDate
+    ) {
+      return true
+    }
+  }
+  return false
+}
+
+function FocusIcon() {
+  return (
+    <span
+      aria-hidden="true"
+      className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 dark:bg-slate-700"
+    >
+      <span className="h-1.5 w-1.5 rounded-full bg-slate-500 dark:bg-slate-400" />
+    </span>
+  )
+}
+
+function InfoIcon() {
+  return (
+    <span
+      aria-hidden="true"
+      className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-200"
+    >
+      <span className="text-sm font-semibold leading-none">i</span>
+    </span>
+  )
+}
+
 export function ArticleListPage() {
   const { feedId } = useParams<{ feedId: string }>()
   const navigate = useNavigate()
-  const feedTitle = (feedId ? getFeedById(feedId)?.title : '') ?? ''
 
+  const [feed, setFeed] = useState<Feed | null>(() => (feedId ? getFeedById(feedId) ?? null : null))
   const [articles, setArticles] = useState<Article[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -49,6 +94,9 @@ export function ArticleListPage() {
     feedId ? new Set(getFavoritesByFeed(feedId).map((entry) => entry.link)) : new Set()
   )
   const [dismissedFeedIdInSession, setDismissedFeedIdInSession] = useState<string | null>(null)
+
+  const feedTitle = feed?.title ?? ''
+  const refreshMode: FeedRefreshMode = feed?.refreshMode ?? 'focus'
 
   useEffect(() => {
     if (!feedId) return
@@ -63,8 +111,12 @@ export function ArticleListPage() {
   useEffect(() => {
     if (!feedId) return
 
-    const feed = getFeedById(feedId)
-    if (!feed) {
+    let cancelled = false
+    const currentFeed = getFeedById(feedId)
+    queueMicrotask(() => {
+      if (!cancelled) setFeed(currentFeed ?? null)
+    })
+    if (!currentFeed) {
       queueMicrotask(() => {
         setError(t('订阅不存在', 'Subscription not found'))
         setLoading(false)
@@ -73,35 +125,70 @@ export function ArticleListPage() {
     }
 
     const cached = getArticlesCache(feedId)
-    if (cached?.articles?.length) {
-      queueMicrotask(() => {
-        setArticles(cached.articles)
-        setLoading(false)
-      })
-      return
+    const cachedArticles = cached?.articles ?? []
+    const hasCachedArticles = cachedArticles.length > 0
+
+    const syncFeedMeta = (incomingArticles: Article[]) => {
+      const nextItemCount = incomingArticles.length
+      if (currentFeed.itemCount === nextItemCount) return currentFeed
+      const updatedFeed = updateFeed(feedId, { itemCount: nextItemCount })
+      const mergedFeed = updatedFeed ?? { ...currentFeed, itemCount: nextItemCount }
+      if (!cancelled) setFeed(mergedFeed)
+      return mergedFeed
     }
 
-    fetchFeedWithArticles(feed.feedUrl)
-      .then((data) => {
-        const sorted = [...data.articles].sort((a, b) => {
-          const da = new Date(a.pubDate).getTime()
-          const db = new Date(b.pubDate).getTime()
-          return db - da
-        })
-        setArticles(sorted)
-        setArticlesCache(feedId, {
-          feed,
-          articles: sorted,
-          fetchedAt: Date.now(),
-        })
-      })
-      .catch((err) => {
-        setError(err instanceof Error ? err.message : t('加载失败', 'Failed to load'))
-      })
-      .finally(() => {
+    if (refreshMode === 'focus' && hasCachedArticles) {
+      queueMicrotask(() => {
+        if (cancelled) return
+        setArticles(cachedArticles)
+        setError('')
         setLoading(false)
       })
-  }, [feedId])
+    } else {
+      queueMicrotask(() => {
+        if (cancelled) return
+        setLoading(true)
+        setError('')
+      })
+    }
+
+    fetchFeedWithArticles(currentFeed.feedUrl)
+      .then((data) => {
+        if (cancelled) return
+        const sortedArticles = sortArticlesByPubDate(data.articles)
+        const nextFeed = syncFeedMeta(sortedArticles)
+        const shouldUpdateVisibleList =
+          !hasCachedArticles ||
+          refreshMode === 'live' ||
+          hasArticleListChanged(cachedArticles, sortedArticles)
+
+        if (shouldUpdateVisibleList) {
+          setArticles(sortedArticles)
+        }
+
+        setArticlesCache(feedId, {
+          feed: nextFeed,
+          articles: sortedArticles,
+          fetchedAt: Date.now(),
+        })
+        setError('')
+        setLoading(false)
+      })
+      .catch((err) => {
+        if (cancelled) return
+        if (hasCachedArticles) {
+          setArticles(cachedArticles)
+          setError('')
+        } else {
+          setError(err instanceof Error ? err.message : t('加载失败', 'Failed to load'))
+        }
+        setLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [feedId, refreshMode])
 
   useEffect(() => {
     if (loading || articles.length === 0 || !feedId) return
@@ -125,6 +212,10 @@ export function ArticleListPage() {
 
   const handleArticleClick = (article: Article) => {
     if (feedId) sessionStorage.setItem(`articleListScroll_${feedId}`, String(window.scrollY))
+    if (refreshMode === 'live' && article.link) {
+      window.location.assign(article.link)
+      return
+    }
     navigate(`/read/${feedId}/${encodeURIComponent(article.id)}`)
   }
 
@@ -132,6 +223,14 @@ export function ArticleListPage() {
     if (!feedId) return
     toggleFavoriteArticle(feedId, article)
     setFavoriteLinks(new Set(getFavoritesByFeed(feedId).map((entry) => entry.link)))
+  }
+
+  const handleToggleRefreshMode = () => {
+    if (!feedId || !feed) return
+    const nextMode: FeedRefreshMode = feed.refreshMode === 'live' ? 'focus' : 'live'
+    const updatedFeed = updateFeed(feedId, { refreshMode: nextMode })
+    if (!updatedFeed) return
+    setFeed(updatedFeed)
   }
 
   const recentUnfinishedData = useMemo(() => {
@@ -241,6 +340,43 @@ export function ArticleListPage() {
             {t('返回', 'Back')}
           </button>
           <h1 className="text-lg font-semibold truncate flex-1 min-w-0">{feedTitle}</h1>
+          <div className="shrink-0 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleToggleRefreshMode}
+              className="h-[46px] px-3 rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors font-medium text-sm text-slate-700 dark:text-slate-200 inline-flex items-center gap-2"
+              aria-label={
+                refreshMode === 'live'
+                  ? t('当前为 live 模式，点击切换到 focus 模式', 'Currently in live mode, click to switch to focus mode')
+                  : t('当前为 focus 模式，点击切换到 live 模式', 'Currently in focus mode, click to switch to live mode')
+              }
+              title={
+                refreshMode === 'live'
+                  ? t('当前为 live 模式，点击切换到 focus 模式', 'Currently in live mode, click to switch to focus mode')
+                  : t('当前为 focus 模式，点击切换到 live 模式', 'Currently in focus mode, click to switch to live mode')
+              }
+            >
+              <span>{refreshMode}</span>
+              {refreshMode === 'live' ? (
+                <span aria-hidden="true" className="text-sm leading-none">🟢</span>
+              ) : (
+                <FocusIcon />
+              )}
+            </button>
+            <div className="relative group shrink-0">
+              <button
+                type="button"
+                className="h-9 w-9 rounded-full bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors inline-flex items-center justify-center"
+                aria-label={t('刷新模式说明', 'Refresh mode help')}
+                title={t('live：每次打开都更新；focus：有变化才更新', 'live: refresh on every open; focus: update only when changes are detected')}
+              >
+                <InfoIcon />
+              </button>
+              <div className="pointer-events-none absolute right-0 top-full z-10 mt-2 w-64 rounded-lg bg-slate-900 px-3 py-2 text-xs leading-5 text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                {t('live：每次打开都更新；focus：有变化才更新', 'live: refresh on every open; focus: update only when changes are detected')}
+              </div>
+            </div>
+          </div>
           <button
             onClick={() => setConfirmDeleteOpen(true)}
             className="shrink-0 h-[46px] px-4 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-medium"
