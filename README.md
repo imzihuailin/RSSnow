@@ -33,5 +33,25 @@ https://imzihuailin.github.io/RSSnow/
 
 imzihuailin.github.io/RSSnow/
 
+## 本地运行与部署
 
+### 本地运行
 
+安装依赖：
+
+```powershell
+npm install
+```
+
+启动开发服务器：
+
+```powershell
+npm run dev
+```
+
+如需验证生产环境构建，可执行：
+
+```powershell
+npm run build
+npm run preview
+```
