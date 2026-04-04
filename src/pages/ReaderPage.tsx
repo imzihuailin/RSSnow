@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
+﻿import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   deleteFetchedContent,
@@ -659,7 +659,7 @@ export function ReaderPage() {
           ) : (
             <p className="opacity-80">
               {t(
-                '鍘熸枃鎶撳彇澶辫触锛岃閫€鍑哄悗閲嶈瘯锛屾垨鍦ㄦ柊绐楀彛鎵撳紑鍘熸枃',
+                '原文抓取失败，请稍后重试，或在新窗口打开原文。',
                 'Failed to fetch article. Please try again or open in a new tab.'
               )}
             </p>
@@ -758,14 +758,14 @@ export function ReaderPage() {
                 className="flex-1 px-4 py-2 rounded-lg transition-colors"
                 style={{ border: `1px solid ${background.borderColor}` }}
               >
-                {t('鍙栨秷', 'Cancel')}
+                {t('取消', 'Cancel')}
               </button>
               <button
                 type="button"
                 onClick={handleRefetch}
                 className="flex-1 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors font-medium"
               >
-                {t('纭', 'OK')}
+                {t('确认', 'OK')}
               </button>
             </div>
           </div>

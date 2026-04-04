@@ -3,6 +3,8 @@ const ARTICLES_CACHE_KEY = 'rssnow_articles_cache'
 const FAVORITES_KEY = 'rssnow_favorites'
 const FAVORITE_ARTICLE_ID_PREFIX = 'favorite-link:'
 
+export type FeedRefreshMode = 'focus' | 'live'
+
 export interface Feed {
   id: string
   title: string
@@ -10,6 +12,7 @@ export interface Feed {
   feedUrl: string
   description?: string
   itemCount?: number
+  refreshMode: FeedRefreshMode
 }
 
 export interface Article {
@@ -41,6 +44,7 @@ export function getFeeds(): Feed[] {
     return raw.map((f: Partial<Feed>) => ({
       ...f,
       feedUrl: f.feedUrl ?? f.link ?? '',
+      refreshMode: f.refreshMode === 'live' ? 'live' : 'focus',
     }))
   } catch {
     return []
@@ -61,6 +65,19 @@ export function addFeed(feed: Omit<Feed, 'id'>): Feed {
 
 export function getFeedById(id: string): Feed | undefined {
   return getFeeds().find((f) => f.id === id)
+}
+
+export function updateFeed(feedId: string, updates: Partial<Omit<Feed, 'id'>>): Feed | null {
+  const feeds = getFeeds()
+  const index = feeds.findIndex((feed) => feed.id === feedId)
+  if (index < 0) return null
+  const nextFeed = {
+    ...feeds[index],
+    ...updates,
+  }
+  feeds[index] = nextFeed
+  saveFeeds(feeds)
+  return nextFeed
 }
 
 export function deleteFeed(feedId: string): void {
