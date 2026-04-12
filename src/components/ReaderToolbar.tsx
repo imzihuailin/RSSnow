@@ -292,7 +292,10 @@ export function ReaderToolbar({
                             className="absolute inset-0"
                             style={{ backgroundColor: option.overlayTint }}
                           />
-                          <span className="relative z-10 text-sm font-medium">
+                          <span
+                            className="relative z-10 text-sm font-medium"
+                            style={{ color: option.previewTextColor }}
+                          >
                             {t(option.label, option.labelEn)}
                           </span>
                         </button>

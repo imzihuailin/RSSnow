@@ -10,6 +10,7 @@ export interface ReaderColorOption {
   previewImage: string
   previewBorder: string
   overlayTint: string
+  previewTextColor: string
 }
 
 export interface ReaderBackgroundVariantOption {
@@ -44,6 +45,7 @@ export const READER_COLOR_OPTIONS: ReaderColorOption[] = [
     previewImage: createAssetPath('white-pure.jpg'),
     previewBorder: '#d7dfeb',
     overlayTint: 'rgba(255,255,255,0.14)',
+    previewTextColor: '#1f2937',
   },
   {
     id: 'yellow',
@@ -52,6 +54,7 @@ export const READER_COLOR_OPTIONS: ReaderColorOption[] = [
     previewImage: createAssetPath('yellow-pure.jpg'),
     previewBorder: '#efc678',
     overlayTint: 'rgba(255,255,255,0.14)',
+    previewTextColor: '#3f2f12',
   },
   {
     id: 'green',
@@ -60,6 +63,7 @@ export const READER_COLOR_OPTIONS: ReaderColorOption[] = [
     previewImage: createAssetPath('green-pure.jpg'),
     previewBorder: '#4aa95b',
     overlayTint: 'rgba(255,255,255,0.14)',
+    previewTextColor: '#1f3b28',
   },
   {
     id: 'dark',
@@ -68,6 +72,7 @@ export const READER_COLOR_OPTIONS: ReaderColorOption[] = [
     previewImage: createAssetPath('dark-pure.jpg'),
     previewBorder: '#4d5b7a',
     overlayTint: 'rgba(4,8,16,0.18)',
+    previewTextColor: '#f8fafc',
   },
 ]
 
