@@ -17,7 +17,7 @@ export interface ReadingPreferences {
 }
 
 const DEFAULTS: ReadingPreferences = {
-  fontId: 'serif',
+  fontId: 'yahei-arial',
   fontSize: 18,
   lineHeight: 1.6,
   pagePadding: 15,

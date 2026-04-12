@@ -9,14 +9,36 @@ import {
 } from '../utils/readerBackgrounds'
 
 const FONT_OPTIONS = [
-  { id: 'serif', label: '宋体', labelEn: 'Serif', fontFamily: '"SimSun", "Songti SC", serif' },
-  { id: 'sans', label: '黑体', labelEn: 'Sans', fontFamily: '"SimHei", "Heiti SC", sans-serif' },
-  { id: 'kai', label: '楷体', labelEn: 'Kai', fontFamily: '"KaiTi", "Kaiti SC", serif' },
-  { id: 'yahei', label: '微软雅黑', labelEn: 'YaHei', fontFamily: '"Microsoft YaHei", "PingFang SC", sans-serif' },
-  { id: 'georgia', label: 'Georgia', labelEn: 'Georgia', fontFamily: 'Georgia, "Times New Roman", serif' },
-  { id: 'times', label: 'Times New Roman', labelEn: 'Times New Roman', fontFamily: '"Times New Roman", Times, serif' },
-  { id: 'arial', label: 'Arial', labelEn: 'Arial', fontFamily: 'Arial, Helvetica, sans-serif' },
-  { id: 'verdana', label: 'Verdana', labelEn: 'Verdana', fontFamily: 'Verdana, Geneva, sans-serif' },
+  {
+    id: 'yahei-arial',
+    label: '微软雅黑 / Arial',
+    labelEn: 'YaHei / Arial',
+    fontFamily: '"Microsoft YaHei", Arial, sans-serif',
+  },
+  {
+    id: 'pingfang-helvetica',
+    label: '苹方 / Helvetica',
+    labelEn: 'PingFang / Helvetica',
+    fontFamily: '"PingFang SC", Helvetica, Arial, sans-serif',
+  },
+  {
+    id: 'simsun-times',
+    label: '宋体 / Times New Roman',
+    labelEn: 'SimSun / Times New Roman',
+    fontFamily: '"SimSun", "Times New Roman", serif',
+  },
+  {
+    id: 'simhei-verdana',
+    label: '黑体 / Verdana',
+    labelEn: 'SimHei / Verdana',
+    fontFamily: '"SimHei", Verdana, Arial, sans-serif',
+  },
+  {
+    id: 'songti-georgia',
+    label: '宋体 SC / Georgia',
+    labelEn: 'Songti SC / Georgia',
+    fontFamily: '"Songti SC", Georgia, "Times New Roman", serif',
+  },
 ]
 
 type ExpandKey = 'progress' | 'font' | 'bg' | 'brightness' | null
@@ -70,7 +92,7 @@ export function ReaderToolbar({
 
   const handleProgressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = parseFloat(e.target.value)
-    if (!isNaN(v)) onProgressChange(v)
+    if (!Number.isNaN(v)) onProgressChange(v)
   }
 
   const hoverClass = currentBackground.isDarkScheme ? 'hover:bg-white/10' : 'hover:bg-black/5'
@@ -223,18 +245,18 @@ export function ReaderToolbar({
                     />
                     <span className="text-xs opacity-75 shrink-0 w-10">{pagePadding}%</span>
                   </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs opacity-75 shrink-0">{t('字体', 'Font')}</span>
+                  <div className="flex flex-wrap gap-2">
                     {FONT_OPTIONS.map((f) => (
                       <button
                         key={f.id}
+                        type="button"
                         onClick={() => onFontChange(f.id)}
-                        className={`px-3 py-1.5 rounded text-sm transition-colors ${
+                        className={`rounded-xl px-3 py-1.5 text-sm transition ${
                           fontId === f.id
                             ? 'bg-blue-500 text-white'
                             : currentBackground.isDarkScheme
-                              ? 'bg-white/15 text-current hover:bg-white/25'
-                              : 'bg-black/8 text-current hover:bg-black/12'
+                              ? 'bg-white/15 hover:bg-white/20'
+                              : 'bg-black/5 hover:bg-black/10'
                         }`}
                       >
                         {t(f.label, f.labelEn)}
