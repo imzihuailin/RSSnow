@@ -94,6 +94,22 @@ export function ArticleListPage() {
     feedId ? new Set(getFavoritesByFeed(feedId).map((entry) => entry.link)) : new Set()
   )
   const [dismissedFeedIdInSession, setDismissedFeedIdInSession] = useState<string | null>(null)
+  const [isMobileViewport, setIsMobileViewport] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.matchMedia('(max-width: 767px)').matches
+  })
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const mediaQuery = window.matchMedia('(max-width: 767px)')
+    const handleChange = (event: MediaQueryListEvent) => {
+      setIsMobileViewport(event.matches)
+    }
+
+    mediaQuery.addEventListener('change', handleChange)
+    return () => mediaQuery.removeEventListener('change', handleChange)
+  }, [])
 
   const feedTitle = feed?.title ?? ''
   const refreshMode: FeedRefreshMode = feed?.refreshMode ?? 'focus'
@@ -266,6 +282,14 @@ export function ArticleListPage() {
     !!recentUnfinishedData &&
     articles.length > 0 &&
     !(dismissedFeedIdInSession != null && dismissedFeedIdInSession === feedId)
+
+  const params = new URLSearchParams(window.location.search)
+  const isLiveMode =
+    params.get('mode') === 'live' ||
+    params.get('view') === 'live' ||
+    params.get('live') === '1' ||
+    window.location.hash.toLowerCase().includes('live')
+  const shouldHideRecentUnfinishedCard = isMobileViewport && isLiveMode
 
   const displayedArticles = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
@@ -440,7 +464,7 @@ export function ArticleListPage() {
           </div>
         )}
 
-        {showRecentUnfinishedCard && recentUnfinishedData && (
+        {showRecentUnfinishedCard && recentUnfinishedData && !shouldHideRecentUnfinishedCard && (
           <div className="mb-4 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50/80 dark:bg-blue-900/30 px-4 py-3.5">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
