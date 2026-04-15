@@ -41,8 +41,8 @@ export function ArticleRow({
   favoriteLabel,
 }: ArticleRowProps) {
   const contentTone = isRead
-    ? 'bg-slate-50 dark:bg-slate-800/40 border-slate-200/60 dark:border-slate-700/40 hover:border-slate-300 dark:hover:border-slate-600'
-    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-blue-500 dark:hover:border-blue-500'
+    ? 'bg-slate-50 dark:bg-[#16222D]/60 border-slate-200/60 dark:border-slate-800/70 hover:border-slate-300 dark:hover:border-slate-700'
+    : 'bg-white dark:bg-[#16222D] border-slate-200 dark:border-slate-800 hover:border-blue-500 dark:hover:border-blue-500'
 
   const titleTone = isRead
     ? 'text-slate-400 dark:text-slate-500'
@@ -50,7 +50,7 @@ export function ArticleRow({
 
   const favoriteTone = isFavorited
     ? 'border-amber-300 bg-amber-50 text-amber-500 hover:bg-amber-100 dark:border-amber-500/60 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/20'
-    : 'border-slate-200 bg-white text-slate-400 hover:border-slate-300 hover:text-amber-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-500 dark:hover:border-slate-600 dark:hover:text-amber-300'
+    : 'border-slate-200 bg-white text-slate-400 hover:border-slate-300 hover:text-amber-500 dark:border-slate-800 dark:bg-[#16222D] dark:text-slate-500 dark:hover:border-slate-700 dark:hover:text-amber-300'
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_3rem] items-stretch gap-2">
@@ -58,20 +58,20 @@ export function ArticleRow({
         type="button"
         onClick={onOpen}
         aria-label={openLabel}
-        className={`min-w-0 w-full px-4 py-2.5 rounded-lg border transition-colors flex items-start gap-3 text-left ${contentTone}`}
+        className={`min-w-0 w-full rounded-lg border px-4 py-2.5 text-left transition-colors flex items-start gap-3 ${contentTone}`}
       >
-        <div className="flex-1 min-w-0">
-          <h3 className={`font-medium line-clamp-2 ${titleTone}`}>{title}</h3>
+        <div className="min-w-0 flex-1">
+          <h3 className={`line-clamp-2 font-medium ${titleTone}`}>{title}</h3>
           {subtitle && (
-            <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">{subtitle}</p>
+            <p className="mt-1 text-sm text-slate-400 dark:text-slate-500">{subtitle}</p>
           )}
           {description && !isRead && (
-            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 line-clamp-2">
+            <p className="mt-1 line-clamp-2 text-sm text-slate-600 dark:text-slate-300">
               {description}
             </p>
           )}
         </div>
-        {isRead && <span className="shrink-0 text-base mt-0.5">✓</span>}
+        {isRead && <span className="mt-0.5 shrink-0 text-base">✓</span>}
       </button>
 
       <button
@@ -79,7 +79,7 @@ export function ArticleRow({
         aria-label={favoriteLabel}
         aria-pressed={isFavorited}
         onClick={onToggleFavorite}
-        className={`w-12 min-h-full py-2.5 rounded-lg border transition-colors flex items-center justify-center self-stretch ${favoriteTone}`}
+        className={`flex min-h-full w-12 self-stretch items-center justify-center rounded-lg border py-2.5 transition-colors ${favoriteTone}`}
       >
         <StarIcon filled={isFavorited} />
       </button>

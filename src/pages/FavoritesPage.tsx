@@ -36,8 +36,8 @@ export function FavoritesPage() {
 
   if (!feedId || !feed) {
     return (
-      <div className="min-h-screen bg-slate-100 dark:bg-slate-900 flex flex-col">
-        <header className="sticky top-0 z-10 bg-white/80 dark:bg-slate-900/80 backdrop-blur border-b border-slate-200 dark:border-slate-700">
+      <div className="min-h-screen bg-slate-100 dark:bg-[#0E151D] flex flex-col">
+        <header className="sticky top-0 z-10 bg-white/80 dark:bg-[#111B24] backdrop-blur border-b border-slate-200 dark:border-slate-800">
           <div className="max-w-[52rem] mx-auto px-4 py-4 flex items-center gap-4">
             <button
               onClick={() => navigate('/')}
@@ -73,8 +73,8 @@ export function FavoritesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100">
-      <header className="sticky top-0 z-10 bg-white/80 dark:bg-slate-900/80 backdrop-blur border-b border-slate-200 dark:border-slate-700">
+    <div className="min-h-screen bg-slate-100 dark:bg-[#0E151D] text-slate-900 dark:text-slate-100">
+      <header className="sticky top-0 z-10 bg-white/80 dark:bg-[#111B24] backdrop-blur border-b border-slate-200 dark:border-slate-800">
         <div className="max-w-[52rem] mx-auto px-4 py-4 flex items-center gap-4">
           <button
             onClick={() => navigate(`/feed/${feedId}`)}
@@ -84,7 +84,7 @@ export function FavoritesPage() {
           </button>
           <div className="min-w-0 flex-1">
             <h1 className="text-lg font-semibold truncate">{t('我的收藏', 'My Favorites')}</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 truncate">{feed.title}</p>
+            <p className="text-sm text-slate-500 dark:text-slate-300 truncate">{feed.title}</p>
           </div>
         </div>
       </header>

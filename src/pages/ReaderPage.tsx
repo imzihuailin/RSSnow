@@ -675,7 +675,7 @@ export function ReaderPage() {
               className="opacity-50 hover:underline"
               style={{ color: background.linkColor }}
             >
-              {t('在新窗口打开原文 ->', 'Open original ->')}
+              {t('在原始网页打开', 'Open on original page')}
             </a>
             <button
               onClick={(e) => {

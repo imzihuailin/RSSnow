@@ -44,7 +44,7 @@ const FONT_OPTIONS = [
 type ExpandKey = 'progress' | 'font' | 'bg' | 'brightness' | null
 
 const SLIDER_STYLES =
-  'flex-1 h-2 rounded-full appearance-none bg-slate-200 dark:bg-slate-600 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:cursor-pointer'
+  'flex-1 h-2 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:cursor-pointer'
 
 interface ReaderToolbarProps {
   visible: boolean
@@ -96,7 +96,9 @@ export function ReaderToolbar({
   }
 
   const hoverClass = currentBackground.isDarkScheme ? 'hover:bg-white/10' : 'hover:bg-black/5'
-  const activeClass = 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
+  const activeClass = currentBackground.isDarkScheme
+    ? 'bg-blue-500/20 text-blue-300'
+    : 'bg-blue-500/20 text-blue-600'
 
   return (
     <div
@@ -199,6 +201,7 @@ export function ReaderToolbar({
                     value={progress}
                     onChange={handleProgressChange}
                     className={SLIDER_STYLES}
+                    style={{ backgroundColor: currentBackground.isDarkScheme ? 'rgba(148, 163, 184, 0.35)' : '#e2e8f0' }}
                   />
                   <span className="text-xs opacity-75 shrink-0 w-10">{Math.round(progress)}%</span>
                 </div>
@@ -216,6 +219,7 @@ export function ReaderToolbar({
                       value={fontSize}
                       onChange={(e) => onFontSizeChange(parseInt(e.target.value, 10))}
                       className={SLIDER_STYLES}
+                      style={{ backgroundColor: currentBackground.isDarkScheme ? 'rgba(148, 163, 184, 0.35)' : '#e2e8f0' }}
                     />
                     <span className="text-xs opacity-75 shrink-0 w-10">{fontSize}px</span>
                   </div>
@@ -229,6 +233,7 @@ export function ReaderToolbar({
                       value={lineHeight}
                       onChange={(e) => onLineHeightChange(parseFloat(e.target.value))}
                       className={SLIDER_STYLES}
+                      style={{ backgroundColor: currentBackground.isDarkScheme ? 'rgba(148, 163, 184, 0.35)' : '#e2e8f0' }}
                     />
                     <span className="text-xs opacity-75 shrink-0 w-10">{lineHeight.toFixed(1)}</span>
                   </div>
@@ -242,6 +247,7 @@ export function ReaderToolbar({
                       value={pagePadding}
                       onChange={(e) => onPagePaddingChange(parseInt(e.target.value, 10))}
                       className={SLIDER_STYLES}
+                      style={{ backgroundColor: currentBackground.isDarkScheme ? 'rgba(148, 163, 184, 0.35)' : '#e2e8f0' }}
                     />
                     <span className="text-xs opacity-75 shrink-0 w-10">{pagePadding}%</span>
                   </div>
@@ -357,6 +363,7 @@ export function ReaderToolbar({
                     value={brightness}
                     onChange={(e) => onBrightnessChange(parseFloat(e.target.value))}
                     className={SLIDER_STYLES}
+                    style={{ backgroundColor: currentBackground.isDarkScheme ? 'rgba(148, 163, 184, 0.35)' : '#e2e8f0' }}
                   />
                   <span className="text-xs opacity-75 shrink-0 w-10">
                     {Math.round(brightness * 100)}%

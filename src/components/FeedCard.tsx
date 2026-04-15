@@ -10,23 +10,23 @@ interface FeedCardProps {
 export function FeedCard({ feedId, title, itemCount }: FeedCardProps) {
   return (
     <Link to={`/feed/${feedId}`}>
-      <article className="bg-white dark:bg-slate-800 rounded-xl shadow-md hover:shadow-lg transition-shadow p-5 border border-slate-200 dark:border-slate-700 cursor-pointer">
-      <div className="flex items-start gap-3">
-        <div className="w-12 h-12 rounded-lg bg-slate-200 dark:bg-slate-600 flex items-center justify-center text-xl shrink-0">
-          📰
+      <article className="cursor-pointer rounded-xl border border-slate-200 bg-white p-5 shadow-md transition-shadow hover:shadow-lg dark:border-slate-800 dark:bg-[#16222D] dark:shadow-black/20">
+        <div className="flex items-start gap-3">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-slate-200 text-xl dark:bg-slate-700">
+            📰
+          </div>
+          <div className="min-w-0 flex-1">
+            <h3 className="truncate font-semibold text-slate-900 dark:text-slate-100">
+              {title}
+            </h3>
+            {itemCount != null && (
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">
+                {itemCount} {t('篇文章', 'articles')}
+              </p>
+            )}
+          </div>
         </div>
-        <div className="min-w-0 flex-1">
-          <h3 className="font-semibold text-slate-900 dark:text-slate-100 truncate">
-            {title}
-          </h3>
-          {itemCount != null && (
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              {itemCount} {t('篇文章', 'articles')}
-            </p>
-          )}
-        </div>
-      </div>
-    </article>
+      </article>
     </Link>
   )
 }

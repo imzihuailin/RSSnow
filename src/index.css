@@ -2,9 +2,33 @@
 @tailwind components;
 @tailwind utilities;
 
+html,
 body {
   margin: 0;
   min-height: 100vh;
+}
+
+html {
+  background: #f1f5f9;
+}
+
+html.dark {
+  background: #0E151D;
+  color-scheme: dark;
+}
+
+body {
+  background: transparent;
+  transition: background-color 300ms ease, color 300ms ease;
+}
+
+body,
+body *,
+body *::before,
+body *::after {
+  transition-property: background-color, border-color, color, fill, stroke, box-shadow, opacity, transform;
+  transition-duration: 300ms;
+  transition-timing-function: ease;
 }
 
 /* 强制正文继承阅读器字体与字号，覆盖抓取内容中的内联 style、font 标签等 */

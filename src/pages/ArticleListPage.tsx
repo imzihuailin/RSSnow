@@ -59,7 +59,7 @@ function FocusIcon() {
   return (
     <span
       aria-hidden="true"
-      className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 dark:bg-slate-700"
+      className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 dark:bg-slate-800"
     >
       <span className="h-1.5 w-1.5 rounded-full bg-slate-500 dark:bg-slate-400" />
     </span>
@@ -70,7 +70,7 @@ function InfoIcon() {
   return (
     <span
       aria-hidden="true"
-      className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-200"
+      className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-200"
     >
       <span className="text-sm font-semibold leading-none">i</span>
     </span>
@@ -337,8 +337,8 @@ export function ArticleListPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-slate-100 dark:bg-slate-900 flex flex-col">
-        <header className="sticky top-0 z-10 bg-white/80 dark:bg-slate-900/80 backdrop-blur border-b border-slate-200 dark:border-slate-700">
+      <div className="min-h-screen bg-slate-100 dark:bg-[#0E151D] flex flex-col">
+        <header className="sticky top-0 z-10 bg-white/80 dark:bg-[#111B24] backdrop-blur border-b border-slate-200 dark:border-slate-800">
           <div className="max-w-[52rem] mx-auto px-4 py-4 flex items-center gap-4">
             <button
               onClick={handleBack}
@@ -354,8 +354,8 @@ export function ArticleListPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100">
-      <header className="sticky top-0 z-10 bg-white/80 dark:bg-slate-900/80 backdrop-blur border-b border-slate-200 dark:border-slate-700">
+    <div className="min-h-screen bg-slate-100 dark:bg-[#0E151D] text-slate-900 dark:text-slate-100">
+      <header className="sticky top-0 z-10 bg-white/80 dark:bg-[#111B24] backdrop-blur border-b border-slate-200 dark:border-slate-800">
         <div className="max-w-[52rem] mx-auto px-4 py-4 flex items-center gap-4">
           <button
             onClick={handleBack}
@@ -368,7 +368,7 @@ export function ArticleListPage() {
             <button
               type="button"
               onClick={handleToggleRefreshMode}
-              className="h-[46px] px-3 rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors font-medium text-sm text-slate-700 dark:text-slate-200 inline-flex items-center gap-2"
+              className="h-[46px] px-3 rounded-lg bg-white dark:bg-[#16222D] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors font-medium text-sm text-slate-700 dark:text-slate-200 inline-flex items-center gap-2"
               aria-label={
                 refreshMode === 'live'
                   ? t('当前为 live 模式，点击切换到 focus 模式', 'Currently in live mode, click to switch to focus mode')
@@ -390,7 +390,7 @@ export function ArticleListPage() {
             <div className="relative group shrink-0">
               <button
                 type="button"
-                className="h-9 w-9 rounded-full bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors inline-flex items-center justify-center"
+                className="h-9 w-9 rounded-full bg-white dark:bg-[#16222D] text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors inline-flex items-center justify-center"
                 aria-label={t('刷新模式说明', 'Refresh mode help')}
                 title={t('live：每次打开都更新；focus：有变化才更新', 'live: refresh on every open; focus: update only when changes are detected')}
               >
@@ -416,18 +416,18 @@ export function ArticleListPage() {
           onClick={() => setConfirmDeleteOpen(false)}
         >
           <div
-            className="w-full max-w-md mx-4 bg-white dark:bg-slate-800 rounded-xl shadow-xl p-6"
+            className="w-full max-w-md mx-4 bg-white dark:bg-[#16222D] rounded-xl shadow-xl dark:shadow-black/30 border border-transparent dark:border-slate-800 p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-lg font-semibold mb-2">{t('确认删除', 'Confirm Delete')}</h2>
-            <p className="text-slate-600 dark:text-slate-400 mb-6">
+            <p className="text-slate-600 dark:text-slate-300 mb-6">
               {t(`确定要删除订阅“${feedTitle}”吗？此操作不可恢复。`, `Are you sure you want to delete "${feedTitle}"? This cannot be undone.`)}
             </p>
             <div className="flex gap-3">
               <button
                 type="button"
                 onClick={() => setConfirmDeleteOpen(false)}
-                className="flex-1 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                className="flex-1 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               >
                 {t('取消', 'Cancel')}
               </button>
@@ -451,7 +451,7 @@ export function ArticleListPage() {
               placeholder={t('搜索文章...', 'Search articles...')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="min-w-0 w-full px-4 py-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="min-w-0 w-full px-4 py-2.5 rounded-lg bg-white dark:bg-[#16222D] border border-slate-200 dark:border-slate-800 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               aria-label={t('搜索文章', 'Search articles')}
             />
             <button
@@ -485,7 +485,7 @@ export function ArticleListPage() {
               <button
                 type="button"
                 onClick={handleDismissRecentUnfinished}
-                className="shrink-0 h-[46px] px-4 rounded-lg text-sm font-medium bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700"
+                className="shrink-0 h-[46px] px-4 rounded-lg text-sm font-medium bg-white dark:bg-[#16222D] border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
               >
                 {t('关闭', 'Dismiss')}
               </button>
