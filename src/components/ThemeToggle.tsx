@@ -27,7 +27,6 @@ export function ThemeToggle() {
   }, [])
 
   const isDark = theme === 'dark'
-  const label = isDark ? t('深色', 'Dark') : t('浅色', 'Light')
   const nextLabel = isDark ? t('切换到浅色模式', 'Switch to light mode') : t('切换到深色模式', 'Switch to dark mode')
 
   return (
@@ -43,12 +42,6 @@ export function ThemeToggle() {
       title={nextLabel}
       aria-pressed={isDark}
     >
-      <span className={`pointer-events-none absolute left-5 text-xs font-semibold uppercase tracking-[0.18em] transition-all duration-300 ${isDark ? 'opacity-0' : 'opacity-100'}`}>
-        {label}
-      </span>
-      <span className={`pointer-events-none absolute right-5 text-xs font-semibold uppercase tracking-[0.18em] transition-all duration-300 ${isDark ? 'opacity-100' : 'opacity-0'}`}>
-        {label}
-      </span>
       <span
         className={`pointer-events-none absolute top-1.5 flex h-9 w-12 items-center justify-center rounded-full transition-all duration-500 ease-out ${
           isDark
@@ -73,7 +66,7 @@ export function ThemeToggle() {
           isDark ? 'left-[34px] opacity-30' : 'right-[30px] opacity-0'
         }`}
       />
-      <span className="sr-only">{getLang() === 'zh' ? `当前${label}模式` : `Current mode: ${label}`}</span>
+      <span className="sr-only">{getLang() === 'zh' ? `当前${isDark ? '深色' : '浅色'}模式` : `Current mode: ${isDark ? 'dark' : 'light'}`}</span>
     </button>
   )
 }
