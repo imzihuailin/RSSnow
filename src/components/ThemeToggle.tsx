@@ -19,7 +19,7 @@ function MoonIcon() {
   )
 }
 
-export function ThemeToggle() {
+export function ThemeToggle({ className = '' }: { className?: string }) {
   const [theme, setThemeState] = useState(getTheme())
 
   useEffect(() => {
@@ -33,10 +33,10 @@ export function ThemeToggle() {
     <button
       type="button"
       onClick={() => setThemeState(toggleTheme())}
-      className={`relative inline-flex h-11 w-[126px] items-center overflow-hidden rounded-full border px-4 transition-all duration-500 ease-out focus:outline-none ${
+      className={`relative inline-flex h-11 w-[126px] items-center overflow-hidden rounded-full border px-4 transition-all duration-500 ease-out focus:outline-none ${className} ${
         isDark
-          ? 'border-slate-700 bg-[#16222D] text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_10px_24px_rgba(0,0,0,0.28)]'
-          : 'border-slate-200 bg-[#F3F4F8] text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_8px_20px_rgba(15,23,42,0.08)]'
+          ? 'border-slate-600 bg-[#1E2A36] text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_10px_24px_rgba(0,0,0,0.28)]'
+          : 'border-slate-300 bg-slate-200 text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_8px_20px_rgba(15,23,42,0.08)]'
       }`}
       aria-label={nextLabel}
       title={nextLabel}
@@ -45,7 +45,7 @@ export function ThemeToggle() {
       <span
         className={`pointer-events-none absolute top-1 flex h-9 w-12 items-center justify-center rounded-full transition-all duration-500 ease-out ${
           isDark
-            ? 'left-[72px] bg-[#0E151D] text-slate-200 shadow-[0_8px_18px_rgba(0,0,0,0.35)]'
+            ? 'left-[72px] bg-[#2D3B48] text-slate-200 shadow-[0_8px_18px_rgba(0,0,0,0.35)]'
             : 'left-[6px] bg-white text-amber-500 shadow-[0_8px_18px_rgba(148,163,184,0.45)]'
         }`}
       >

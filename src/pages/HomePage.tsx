@@ -43,13 +43,13 @@ export function HomePage() {
             </button>
           </div>
           <div className="flex shrink-0 items-center gap-3">
-            <ThemeToggle />
             <button
               onClick={handleAddRss}
               className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700"
             >
               {t('添加 RSS', 'Add RSS')}
             </button>
+            <ThemeToggle />
           </div>
         </div>
       </header>
