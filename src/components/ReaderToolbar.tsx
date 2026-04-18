@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { t } from '../i18n'
 import {
   getReaderBackground,
@@ -87,6 +87,13 @@ export function ReaderToolbar({
 }: ReaderToolbarProps) {
   const [expanded, setExpanded] = useState<ExpandKey>(null)
   const currentBackground = getReaderBackground(colorId, backgroundVariantId)
+
+  // 每次工具栏显示时重置为折叠状态
+  useEffect(() => {
+    if (visible) {
+      setExpanded(null)
+    }
+  }, [visible])
 
   const toggle = (key: ExpandKey) => setExpanded((v) => (v === key ? null : key))
 
