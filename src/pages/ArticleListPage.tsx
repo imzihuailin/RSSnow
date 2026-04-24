@@ -66,17 +66,6 @@ function FocusIcon() {
   )
 }
 
-function InfoIcon() {
-  return (
-    <span
-      aria-hidden="true"
-      className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-200"
-    >
-      <span className="text-sm font-semibold leading-none">i</span>
-    </span>
-  )
-}
-
 export function ArticleListPage() {
   const { feedId } = useParams<{ feedId: string }>()
   const navigate = useNavigate()
@@ -387,19 +376,6 @@ export function ArticleListPage() {
                 <FocusIcon />
               )}
             </button>
-            <div className="relative group shrink-0">
-              <button
-                type="button"
-                className="h-9 w-9 rounded-full bg-white dark:bg-[#16222D] text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors inline-flex items-center justify-center"
-                aria-label={t('刷新模式说明', 'Refresh mode help')}
-                title={t('live：每次打开都更新；focus：有变化才更新', 'live: refresh on every open; focus: update only when changes are detected')}
-              >
-                <InfoIcon />
-              </button>
-              <div className="pointer-events-none absolute right-0 top-full z-10 mt-2 w-64 rounded-lg bg-slate-900 px-3 py-2 text-xs leading-5 text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-                {t('live：每次打开都更新；focus：有变化才更新', 'live: refresh on every open; focus: update only when changes are detected')}
-              </div>
-            </div>
           </div>
           <button
             onClick={() => setConfirmDeleteOpen(true)}
