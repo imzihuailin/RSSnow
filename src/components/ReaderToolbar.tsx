@@ -50,6 +50,37 @@ const PROGRESS_THUMB_WIDTH = 28
 const PROGRESS_PREVIEW_THUMB_WIDTH = 20
 const PROGRESS_TRACK_GAP = 2
 
+function colorWithAlpha(color: string, alpha: number): string {
+  const rgbaMatch = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i)
+  if (rgbaMatch) {
+    return `rgba(${rgbaMatch[1]}, ${rgbaMatch[2]}, ${rgbaMatch[3]}, ${alpha})`
+  }
+
+  const value = color.replace('#', '')
+  if (!/^[\da-f]{6}$/i.test(value)) return color
+  const r = parseInt(value.slice(0, 2), 16)
+  const g = parseInt(value.slice(2, 4), 16)
+  const b = parseInt(value.slice(4, 6), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
+function darkenColor(color: string, amount: number, alpha: number): string {
+  const rgbaMatch = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i)
+  if (rgbaMatch) {
+    const r = Math.max(0, Math.round(Number(rgbaMatch[1]) * (1 - amount)))
+    const g = Math.max(0, Math.round(Number(rgbaMatch[2]) * (1 - amount)))
+    const b = Math.max(0, Math.round(Number(rgbaMatch[3]) * (1 - amount)))
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`
+  }
+
+  const value = color.replace('#', '')
+  if (!/^[\da-f]{6}$/i.test(value)) return colorWithAlpha(color, alpha)
+  const r = Math.max(0, Math.round(parseInt(value.slice(0, 2), 16) * (1 - amount)))
+  const g = Math.max(0, Math.round(parseInt(value.slice(2, 4), 16) * (1 - amount)))
+  const b = Math.max(0, Math.round(parseInt(value.slice(4, 6), 16) * (1 - amount)))
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
 interface ReaderToolbarProps {
   visible: boolean
   progress: number
@@ -111,8 +142,13 @@ export function ReaderToolbar({
     ? 'bg-blue-500/20 text-blue-300'
     : 'bg-blue-500/20 text-blue-600'
   const clampedProgress = Math.max(0, Math.min(progress, 100))
-  const progressTrackColor = currentBackground.isDarkScheme ? 'rgba(148, 163, 184, 0.35)' : '#e2e8f0'
-  const progressFillColor = currentBackground.isDarkScheme ? 'rgba(96, 165, 250, 0.55)' : '#93c5fd'
+  const progressTrackColor = darkenColor(currentBackground.surfaceOverlay, 0.14, 0.9)
+  const progressFillColor = colorWithAlpha(currentBackground.borderColor, 0.36)
+  const progressThumbColor = darkenColor(currentBackground.surfaceOverlay, 0.1, 0.96)
+  const progressThumbBorder = `1px solid ${colorWithAlpha(
+    currentBackground.borderColor,
+    currentBackground.isDarkScheme ? 1 : 0.92
+  )}`
   const progressThumbOffset = `calc(${PROGRESS_TRACK_GAP}px + (${clampedProgress} / 100) * (100% - ${
     PROGRESS_THUMB_WIDTH + PROGRESS_TRACK_GAP * 2
   }px))`
@@ -157,8 +193,12 @@ export function ReaderToolbar({
                     style={{ width: progressPreviewFillWidth, backgroundColor: progressFillColor }}
                   />
                   <div
-                    className="absolute top-0 h-5 w-5 rounded-full bg-blue-500 shadow-sm"
-                    style={{ left: progressPreviewThumbOffset }}
+                    className="absolute top-0 h-5 w-5 rounded-full shadow-sm"
+                    style={{
+                      left: progressPreviewThumbOffset,
+                      backgroundColor: progressThumbColor,
+                      border: progressThumbBorder,
+                    }}
                   />
                 </div>
               </div>
@@ -231,8 +271,12 @@ export function ReaderToolbar({
                         style={{ width: progressFillWidth, backgroundColor: progressFillColor }}
                       />
                       <div
-                        className="absolute top-0 h-7 w-7 rounded-full bg-blue-500 shadow-sm"
-                        style={{ left: progressThumbOffset }}
+                        className="absolute top-0 h-7 w-7 rounded-full shadow-sm"
+                        style={{
+                          left: progressThumbOffset,
+                          backgroundColor: progressThumbColor,
+                          border: progressThumbBorder,
+                        }}
                       />
                     </div>
                     <input
