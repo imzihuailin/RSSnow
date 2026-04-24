@@ -46,6 +46,10 @@ type ExpandKey = 'progress' | 'font' | 'bg' | 'brightness' | null
 const SLIDER_STYLES =
   'flex-1 h-2 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:cursor-pointer'
 
+const PROGRESS_THUMB_WIDTH = 24
+const PROGRESS_PREVIEW_THUMB_WIDTH = 16
+const PROGRESS_TRACK_GAP = 2
+
 interface ReaderToolbarProps {
   visible: boolean
   progress: number
@@ -106,6 +110,14 @@ export function ReaderToolbar({
   const activeClass = currentBackground.isDarkScheme
     ? 'bg-blue-500/20 text-blue-300'
     : 'bg-blue-500/20 text-blue-600'
+  const clampedProgress = Math.max(0, Math.min(progress, 100))
+  const progressTrackColor = currentBackground.isDarkScheme ? 'rgba(148, 163, 184, 0.35)' : '#e2e8f0'
+  const progressThumbOffset = `calc(${PROGRESS_TRACK_GAP}px + (${clampedProgress} / 100) * (100% - ${
+    PROGRESS_THUMB_WIDTH + PROGRESS_TRACK_GAP * 2
+  }px))`
+  const progressPreviewThumbOffset = `calc(${PROGRESS_TRACK_GAP}px + (${clampedProgress} / 100) * (100% - ${
+    PROGRESS_PREVIEW_THUMB_WIDTH + PROGRESS_TRACK_GAP * 2
+  }px))`
 
   return (
     <div
@@ -132,12 +144,12 @@ export function ReaderToolbar({
             >
               <div className="h-8 flex items-center justify-center shrink-0">
                 <div
-                  className="relative w-11 h-2.5 rounded-full overflow-visible"
+                  className="relative h-5 w-11 rounded-full"
                   style={{ backgroundColor: `${currentBackground.textColor}30` }}
                 >
                   <div
-                    className="absolute top-1/2 w-3 h-3 rounded-full bg-blue-500 shadow-sm -translate-y-1/2 -translate-x-1/2"
-                    style={{ left: `${Math.max(2, Math.min(progress, 98))}%` }}
+                    className="absolute top-0.5 h-4 w-4 rounded-full bg-blue-500 shadow-sm"
+                    style={{ left: progressPreviewThumbOffset }}
                   />
                 </div>
               </div>
@@ -200,16 +212,26 @@ export function ReaderToolbar({
               {expanded === 'progress' && (
                 <div className="flex items-center gap-3">
                   <span className="text-xs opacity-75 shrink-0 w-10">{t('进度', 'Progress')}</span>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    value={progress}
-                    onChange={handleProgressChange}
-                    className={SLIDER_STYLES}
-                    style={{ backgroundColor: currentBackground.isDarkScheme ? 'rgba(148, 163, 184, 0.35)' : '#e2e8f0' }}
-                  />
+                  <div className="relative flex-1">
+                    <div
+                      className="h-7 rounded-full"
+                      style={{ backgroundColor: progressTrackColor }}
+                    >
+                      <div
+                        className="absolute top-0.5 h-6 w-6 rounded-full bg-blue-500 shadow-sm"
+                        style={{ left: progressThumbOffset }}
+                      />
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      value={progress}
+                      onChange={handleProgressChange}
+                      className="absolute inset-0 h-7 w-full cursor-pointer appearance-none opacity-0"
+                    />
+                  </div>
                   <span className="text-xs opacity-75 shrink-0 w-10">{Math.round(progress)}%</span>
                 </div>
               )}
